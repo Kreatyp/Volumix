@@ -12,3 +12,7 @@ __pycache__/
 
 # Örtliche Werkzeug-Einstellungen, gehören nicht ins Repository
 /.claude/
+
+# Eigene Notizen – bleiben auf der Platte, nicht im Repository
+/SELBER-ANPASSEN.md
+/HOSTING.md

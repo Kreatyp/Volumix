@@ -30,7 +30,7 @@ DEFAULTS = {
     "osd_size": 45,
     "osd_x": 50,
     "osd_y": 88,
-    "sprache": "de",         # "de" oder "en"
+    "sprache": "en",         # "de" oder "en" – Voreinstellung Englisch
     "accent": "violet",      # Schluessel aus theme.PALETTE
     "mode": "dark",
     "hidden": None,          # ausgeblendete Apps (None = Standardliste)

@@ -22,6 +22,11 @@ _TEST = os.path.join(HIER, "testcfg")
 os.makedirs(_TEST, exist_ok=True)
 config.CONFIG_DIR = _TEST
 config.CONFIG_PATH = os.path.join(_TEST, "config.json")
+# Diese Reihe prueft unter anderem die Werkseinstellung. Andere Reihen teilen
+# sich dieselbe Ablage und stellen die Sprache um – deshalb hier vorher weg
+# damit, sonst haengt das Ergebnis an der Reihenfolge.
+if os.path.exists(config.CONFIG_PATH):
+    os.remove(config.CONFIG_PATH)
 
 from volumix import sprache                                    # noqa: E402
 from volumix.config import MASTER_KEY                          # noqa: E402
@@ -48,26 +53,26 @@ f.show()
 app.processEvents()
 
 print("\n=== Sprachwechsel ===")
-pruefe("startet auf Deutsch", "LAUTSTÄRKE-MIXER" in texte_im_fenster(f))
-f._sprache_setzen("en")
+pruefe("startet auf Englisch", "VOLUME MIXER" in texte_im_fenster(f))
+f._sprache_setzen("de")
 app.processEvents()
 texte = texte_im_fenster(f)
-pruefe("Mixer-Ueberschrift englisch", "VOLUME MIXER" in texte)
-pruefe("kein deutscher Rest im Kopf", "LAUTSTÄRKE-MIXER" not in texte)
-pruefe("Statusknopf englisch", f.btn_apps.text() == "Choose apps")
-pruefe("Einstellung gespeichert", f.cfg["sprache"] == "en")
+pruefe("Mixer-Ueberschrift deutsch", "LAUTSTÄRKE-MIXER" in texte)
+pruefe("kein englischer Rest im Kopf", "VOLUME MIXER" not in texte)
+pruefe("Statusknopf deutsch", f.btn_apps.text() == "Apps wählen")
+pruefe("Einstellung gespeichert", f.cfg["sprache"] == "de")
 
 f._seite(1)
 app.processEvents()
 texte = texte_im_fenster(f)
-pruefe("Einstellungen englisch", "CONTROL" in texte,
+pruefe("Einstellungen deutsch", "STEUERUNG" in texte,
        "gefunden: {}".format(sorted(t for t in texte if t.isupper())[:4]))
-pruefe("Sprachabschnitt vorhanden", "LANGUAGE" in texte)
+pruefe("Sprachabschnitt vorhanden", "SPRACHE" in texte)
 
-f._sprache_setzen("de")
+f._sprache_setzen("en")
 app.processEvents()
 texte = texte_im_fenster(f)
-pruefe("zurueck auf Deutsch", "STEUERUNG" in texte)
+pruefe("zurueck auf Englisch", "CONTROL" in texte)
 pruefe("Ansicht bleibt in den Einstellungen", f.einst_seite.isVisible())
 
 f._seite(0)

@@ -145,8 +145,7 @@ sie Tage später neu, ist sie wieder so eingestellt wie zuletzt.
 | `tests\` | Testreihen, `Tests ausfuehren.bat` startet alle |
 | `Volumix starten.bat` | startet den Quelltext direkt |
 | `archiv-tk\` | die alte Tkinter-Fassung, falls sie nochmal gebraucht wird |
-| `..\Volumix-Relief\` | Abzweig mit plastischer Oberfläche – gehört **nicht** zu dieser App |
-| [`SELBER-ANPASSEN.md`](SELBER-ANPASSEN.md) | **Anleitung zum selbst Umbauen** |
+| [`LIZENZHINWEISE.md`](LIZENZHINWEISE.md) | Lizenzen der mitgelieferten Bausteine |
 
 Der Quelltext ist in Bausteine geteilt, statt in einer einzigen großen Datei:
 
@@ -161,7 +160,7 @@ Der Quelltext ist in Bausteine geteilt, statt in einer einzigen großen Datei:
 | `volumix\window.py` | Hauptfenster, Einstellungen, Dialoge |
 | `volumix\hooks.py` | Daumenrad und Lautstärke-Tasten |
 | `volumix\sprache.py` | alle sichtbaren Texte, Deutsch und Englisch |
-| `volumix\fonts\` | die Schrift „Ode to Idle Gaming" samt Lizenz |
+| `volumix\fonts\` | die Wortmarke als Bild |
 
 Einstellungen liegen in `%APPDATA%\Volumix\config.json`,
 der Autostart-Eintrag unter `HKCU\...\CurrentVersion\Run\Volumix`.

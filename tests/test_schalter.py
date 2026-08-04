@@ -43,6 +43,9 @@ app = QApplication(sys.argv)
 app.setQuitOnLastWindowClosed(False)
 f = MainWindow()
 f.show()
+# Diese Reihe sucht Schalter an ihrer Beschriftung – dafuer muss die Sprache
+# feststehen. Ab Werk startet die App auf Englisch.
+f._sprache_setzen("de")
 f._seite(1)
 app.processEvents()
 
