@@ -6,7 +6,7 @@ import functools
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QDialog, QFrame,
-                               QHBoxLayout, QInputDialog, QLabel, QLineEdit,
+                               QHBoxLayout, QLabel, QLineEdit,
                                QMenu, QPushButton, QScrollArea,
                                QSizePolicy, QSystemTrayIcon,
                                QVBoxLayout, QWidget)
@@ -43,6 +43,39 @@ def rundknopf(symbol, theme, tooltip="", groesse=38):
     b.setIconSize(QSize(19, 19))
     b._symbol = symbol
     return b
+
+
+class _Profilname(QLineEdit):
+    """Der Profilname – sieht aus wie Text, ist aber ein Eingabefeld.
+
+    Ein Klick genuegt zum Umbenennen; einen eigenen Dialog braucht es dafuer
+    nicht. Solange das Feld die Eingabe hat, taucht der Papierkorb daneben auf.
+    """
+
+    fokus_rein = Signal()
+    fokus_raus = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("Profilname")
+        self.setAlignment(Qt.AlignCenter)
+        self.setCursor(Qt.PointingHandCursor)
+
+    def focusInEvent(self, e):
+        super().focusInEvent(e)
+        self.selectAll()
+        self.fokus_rein.emit()
+
+    def focusOutEvent(self, e):
+        super().focusOutEvent(e)
+        self.fokus_raus.emit()
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_Escape:
+            self.fokus_raus.emit()      # Abbruch: alten Namen zurueckholen
+            self.clearFocus()
+            return
+        super().keyPressEvent(e)
 
 
 class _KlickZeile(QWidget):
@@ -860,11 +893,20 @@ class MainWindow(QWidget):
         self.btn_prof_zurueck.clicked.connect(lambda: self._profil_blaettern(-1))
         z.addWidget(self.btn_prof_zurueck)
 
-        self.profil_name = QPushButton()
-        self.profil_name.setObjectName("Profilname")
-        self.profil_name.setCursor(Qt.PointingHandCursor)
-        self.profil_name.clicked.connect(self._profil_menue)
+        self.profil_name = _Profilname()
+        self.profil_name.setToolTip(T("profil_hilfe"))
+        self.profil_name.fokus_rein.connect(self._profil_bearbeiten)
+        self.profil_name.fokus_raus.connect(self._profil_name_uebernehmen)
+        self.profil_name.editingFinished.connect(self.profil_name.clearFocus)
         z.addWidget(self.profil_name, 1)
+
+        # Kein Fokus: Sonst verliert das Namensfeld ihn beim Anklicken und der
+        # Papierkorb waere weg, bevor der Klick ankommt.
+        self.btn_prof_weg = self._flachknopf("trash", T("profil_loeschen"))
+        self.btn_prof_weg.setFocusPolicy(Qt.NoFocus)
+        self.btn_prof_weg.clicked.connect(self._profil_weg)
+        self.btn_prof_weg.hide()
+        z.addWidget(self.btn_prof_weg)
 
         self.btn_prof_vor = self._flachknopf("vor", T("profil_vor"))
         self.btn_prof_vor.clicked.connect(lambda: self._profil_blaettern(1))
@@ -890,12 +932,41 @@ class MainWindow(QWidget):
         return b
 
     def _profilleiste_auffrischen(self):
-        namen = self._profil_namen()
-        self.profil_name.setText(self.cfg["profil"] or "—")
-        mehrere = len(namen) > 1
+        mehrere = len(self.profiles) > 1
+        self.profil_name.setText(self.cfg["profil"] or "")
         self.btn_prof_zurueck.setEnabled(mehrere)
         self.btn_prof_vor.setEnabled(mehrere)
-        self.profil_name.setToolTip(T("profil_hilfe"))
+        self.btn_prof_weg.setEnabled(mehrere)
+
+    def _profil_bearbeiten(self):
+        """Feld hat die Eingabe – Papierkorb dazu, Pfeile weg."""
+        self.btn_prof_weg.setVisible(len(self.profiles) > 1)
+        self.btn_prof_zurueck.hide()
+        self.btn_prof_vor.hide()
+
+    def _profil_name_uebernehmen(self):
+        """Feld verliert die Eingabe – Namen uebernehmen, Leiste zurueck.
+
+        Waehrend eines Neuaufbaus verliert auch das alte Feld die Eingabe.
+        Sein Text gehoert dann noch zum vorigen Profil und wuerde als
+        Umbenennung durchgehen – deshalb hier aussteigen.
+        """
+        if getattr(self, "_baut_um", False):
+            return
+        self.btn_prof_weg.hide()
+        self.btn_prof_zurueck.show()
+        self.btn_prof_vor.show()
+        alt = self.cfg["profil"]
+        neu = self.profil_name.text().strip()
+        if not neu or neu == alt or neu in self.profiles:
+            self.profil_name.setText(alt)      # ungueltig: zurueck auf alt
+            return
+        self.profiles[neu] = self.profiles.pop(alt)
+        self.cfg["profil"] = neu
+        self._speichern()
+
+    def _profil_weg(self):
+        self._profil_loeschen(self.cfg["profil"])
 
     def _profil_namen(self):
         return sorted(self.profiles, key=lambda n: n.lower())
@@ -973,33 +1044,18 @@ class MainWindow(QWidget):
         self._melden(T("profil_geladen", name=name))
 
     def _profil_neu(self):
-        name, ok = QInputDialog.getText(self, T("profil_neu_titel"),
-                                        T("profil_name"))
-        name = (name or "").strip()
-        if not ok or not name:
-            return
-        if name in self.profiles:
-            self._profil_oeffnen(name)
-            return
+        """Sofort anlegen, ohne Nachfrage – der Name laesst sich gleich tippen."""
         self._profil_sichern()
+        n = len(self.profiles) + 1
+        while T("profil_zahl", n=n) in self.profiles:
+            n += 1
+        name = T("profil_zahl", n=n)
         self.profiles[name] = self._profil_abbild()      # Kopie des jetzigen
         self.cfg["profil"] = name
         self._profilleiste_auffrischen()
         self._speichern()
-        self._melden(T("profil_geladen", name=name))
-
-    def _profil_umbenennen(self):
-        alt = self.cfg["profil"]
-        name, ok = QInputDialog.getText(self, T("profil_umbenennen_titel"),
-                                        T("profil_name"), text=alt)
-        name = (name or "").strip()
-        if not ok or not name or name == alt:
-            return
-        self._profil_sichern()
-        self.profiles[name] = self.profiles.pop(alt)
-        self.cfg["profil"] = name
-        self._profilleiste_auffrischen()
-        self._speichern()
+        # Gleich zum Umbenennen bereit: Name steht markiert im Feld
+        self.profil_name.setFocus(Qt.OtherFocusReason)
 
     def _profil_loeschen(self, name):
         if len(self.profiles) < 2:      # das letzte bleibt stehen
@@ -1014,24 +1070,6 @@ class MainWindow(QWidget):
             self._profilleiste_auffrischen()
             self._speichern()
 
-    def _profil_menue(self):
-        m = QMenu(self)
-        m.setStyleSheet(self.theme.qss())
-        for name in self._profil_namen():
-            a = m.addAction(name)
-            a.setCheckable(True)
-            a.setChecked(name == self.cfg["profil"])
-            a.triggered.connect(functools.partial(self._profil_oeffnen, name))
-        m.addSeparator()
-        m.addAction(T("profil_neu")).triggered.connect(self._profil_neu)
-        m.addAction(T("profil_umbenennen")).triggered.connect(
-            self._profil_umbenennen)
-        a = m.addAction(T("profil_loeschen"))
-        a.setEnabled(len(self.profiles) > 1)
-        a.triggered.connect(
-            functools.partial(self._profil_loeschen, self.cfg["profil"]))
-        m.exec(self.profil_name.mapToGlobal(
-            self.profil_name.rect().bottomLeft()))
 
     # ---- Statusleiste ----------------------------------------------------
     def _status_setzen(self):
@@ -1127,7 +1165,14 @@ class MainWindow(QWidget):
         self._neu_aufbauen(merker)
 
     def _neu_aufbauen(self, seite=0):
-        """Fenster verwerfen und frisch aufbauen (Sprachwechsel)."""
+        """Fenster verwerfen und frisch aufbauen (Sprach- oder Profilwechsel)."""
+        self._baut_um = True
+        try:
+            self._neu_aufbauen_intern(seite)
+        finally:
+            self._baut_um = False
+
+    def _neu_aufbauen_intern(self, seite):
         alt = self.layout()
         if alt is not None:
             while alt.count():

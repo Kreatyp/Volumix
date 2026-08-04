@@ -63,15 +63,39 @@ pruefe("Pfeile aus, solange es nur eins gibt",
 
 erstes = f.cfg["profil"]
 
-print("\n=== Zweites Profil anlegen ===")
-# Der Dialog wuerde blockieren – wir gehen den Weg dahinter.
-f._profil_sichern()
-f.profiles["Zocken"] = f._profil_abbild()
-f.cfg["profil"] = "Zocken"
-f._profilleiste_auffrischen()
-f._speichern()
+print("\n=== Plus legt sofort an, ohne Nachfrage ===")
+f.btn_prof_neu.click()
+warten()
 pruefe("zwei Profile da", len(f.profiles) == 2, str(sorted(f.profiles)))
-pruefe("das neue ist offen", f.cfg["profil"] == "Zocken")
+pruefe("das neue ist offen", f.cfg["profil"] != erstes, f.cfg["profil"])
+pruefe("es hat einen Standardnamen", f.cfg["profil"] in f.profiles)
+pruefe("Name steht gleich zum Tippen bereit", f.profil_name.hasFocus())
+pruefe("Papierkorb ist aufgetaucht", f.btn_prof_weg.isVisible())
+pruefe("Pfeile weichen solange", not f.btn_prof_vor.isVisible())
+
+print("\n=== Umbenennen direkt im Feld ===")
+f.profil_name.setText("Zocken")
+f.profil_name.clearFocus()
+warten()
+pruefe("neuer Name uebernommen", f.cfg["profil"] == "Zocken", f.cfg["profil"])
+pruefe("in der Liste umbenannt", "Zocken" in f.profiles, str(sorted(f.profiles)))
+pruefe("weiterhin zwei", len(f.profiles) == 2)
+pruefe("Papierkorb wieder weg", not f.btn_prof_weg.isVisible())
+pruefe("Pfeile wieder da", f.btn_prof_vor.isVisible())
+
+f.profil_name.setFocus()
+f.profil_name.setText("   ")
+f.profil_name.clearFocus()
+warten()
+pruefe("leerer Name wird abgelehnt", f.cfg["profil"] == "Zocken"
+       and f.profil_name.text() == "Zocken", f.profil_name.text())
+
+f.profil_name.setFocus()
+f.profil_name.setText(erstes)          # Name schon vergeben
+f.profil_name.clearFocus()
+warten()
+pruefe("belegter Name wird abgelehnt", f.cfg["profil"] == "Zocken",
+       f.cfg["profil"])
 pruefe("Pfeile jetzt an",
        f.btn_prof_zurueck.isEnabled() and f.btn_prof_vor.isEnabled())
 
@@ -115,18 +139,21 @@ pruefe("offenes Profil vermerkt", gespeichert["profil"] == "Zocken",
 pruefe("Farbe steht im Profil",
        gespeichert["profiles"]["Zocken"]["accent"] == "lime")
 
-print("\n=== Umbenennen und Loeschen ===")
-f.profiles["Neuer Name"] = f.profiles.pop("Zocken")
-f.cfg["profil"] = "Neuer Name"
-f._profilleiste_auffrischen()
-f._speichern()
-pruefe("Umbenennen laesst die Zahl gleich", len(f.profiles) == 2)
-f._profil_loeschen("Neuer Name")
+print("\n=== Loeschen ueber den Papierkorb ===")
+f.profil_name.setFocus()
+warten()
+pruefe("Papierkorb da, solange das Feld offen ist",
+       f.btn_prof_weg.isVisible() and f.btn_prof_weg.isEnabled())
+f.btn_prof_weg.click()
 warten(30)
-pruefe("geloescht", "Neuer Name" not in f.profiles, str(sorted(f.profiles)))
-pruefe("das verbliebene ist offen", f.cfg["profil"] == erstes)
+pruefe("geloescht", "Zocken" not in f.profiles, str(sorted(f.profiles)))
+pruefe("das verbliebene ist offen", f.cfg["profil"] == erstes, f.cfg["profil"])
 f._profil_loeschen(erstes)
 pruefe("das letzte laesst sich nicht loeschen", len(f.profiles) == 1)
+f.profil_name.setFocus()
+warten()
+pruefe("bei nur einem Profil bleibt der Papierkorb aus",
+       not f.btn_prof_weg.isVisible())
 
 print("\n{}".format("Alles gruen." if not fehler
                     else "{} Test(s) fehlgeschlagen!".format(fehler)))

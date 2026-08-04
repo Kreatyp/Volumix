@@ -135,18 +135,24 @@ class Theme:
         #Hinweis {{ color: {t.muted}; font-size: 12px; }}
         #Trennlinie {{ background: {t.stroke}; border: none; }}
 
-        /* Profilleiste: Name in der Mitte, Pfeile aussen */
-        QPushButton#Profilname {{
+        /* Profilleiste: Der Name ist ein Eingabefeld, sieht aber aus wie Text.
+           Erst beim Anklicken zeigt sich, dass man darin schreiben kann. */
+        QLineEdit#Profilname {{
             background: transparent;
-            border: none;
+            border: 1px solid transparent;
             border-radius: 9px;
-            padding: 6px 10px;
+            padding: 5px 10px;
             font-size: 13px;
             font-weight: 600;
             letter-spacing: 0.5px;
             color: {t.fg};
+            selection-background-color: {t.accent};
         }}
-        QPushButton#Profilname:hover {{ background: {t.card2}; }}
+        QLineEdit#Profilname:hover {{ background: {t.card2}; }}
+        QLineEdit#Profilname:focus {{
+            background: {t.card2};
+            border-color: {t.accent};
+        }}
 
         /* Mixer-Zeile – Hover und Auswahl bekommen je einen eigenen Verlauf */
         #Zeile {{ border-radius: 12px; background: transparent; }}

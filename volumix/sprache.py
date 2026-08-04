@@ -41,12 +41,9 @@ TEXTE = {
     "tt_zurueck": ("Zurück", "Back"),
 
     # ---- Profile ----
-    "profil_neu_titel": ("Neues Profil", "New profile"),
-    "profil_name": ("Name des Profils:", "Profile name:"),
-    "profil_umbenennen_titel": ("Profil umbenennen", "Rename profile"),
-    "profil_umbenennen": ("Umbenennen …", "Rename …"),
     "profil_loeschen": ("Profil löschen", "Delete profile"),
-    "profil_neu": ("Neues Profil …", "New profile …"),
+    "profil_neu": ("Neues Profil", "New profile"),
+    "profil_zahl": ("Profil {n}", "Profile {n}"),
     "profil_geladen": ("Profil „{name}“", "Profile “{name}”"),
     "profil_geloescht": ("Profil „{name}“ gelöscht",
                          "Profile “{name}” deleted"),
@@ -57,8 +54,10 @@ TEXTE = {
         "Ein Profil merkt sich die Pegel aller Apps, welche davon am Rad "
         "hängen, dazu Farbe, Hell/Dunkel und die Geschwindigkeiten.\n\n"
         "Es gibt keinen Speichern-Knopf: Was du änderst, gehört ab sofort "
-        "zum offenen Profil. Willst du eine zweite Fassung, leg mit „+“ "
-        "eine an — sie startet als Kopie der aktuellen.\n\n"
+        "zum offenen Profil. Mit „+“ legst du sofort ein neues an — es "
+        "startet als Kopie des aktuellen.\n\n"
+        "Zum Umbenennen einfach hier hineinklicken und tippen. Solange das "
+        "Feld offen ist, steht daneben der Papierkorb.\n\n"
         "Sprache, Autostart und die Wahl zwischen Rad und Tasten gelten "
         "für alle Profile.",
         "A profile remembers every app's level, which of them are on the "
