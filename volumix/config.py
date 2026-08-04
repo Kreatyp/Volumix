@@ -20,7 +20,10 @@ OLD_RUN_VALUE = "ThumbwheelVolume"      # Altlast vor der Umbenennung
 
 DEFAULTS = {
     "targets": [],
-    "speed": 40,             # 10..100 % – wie schnell das Rad regelt
+    # 10..100 % – wie schnell geregelt wird. Zwei Werte, weil eine einzelne
+    # App feiner dosiert werden will als die Gesamtlautstaerke.
+    "speed": 40,             # Gesamtlautstaerke
+    "speed_apps": 20,        # einzelne Apps
     "reverse": False,
     "active": True,
     "media_keys": False,     # Lautstaerke-Tasten statt Daumenrad
@@ -65,6 +68,10 @@ def load():
     for k in DEFAULTS:
         if k in daten:
             cfg[k] = daten[k]
+    # Frueher gab es nur eine Geschwindigkeit. Wer von damals kommt, behaelt
+    # sie fuer beides – sonst regelt es nach dem Update ploetzlich anders.
+    if "speed_apps" not in daten and "speed" in daten:
+        cfg["speed_apps"] = cfg["speed"]
     if not isinstance(cfg.get("targets"), list):
         cfg["targets"] = []
     if not isinstance(cfg.get("hidden"), list):

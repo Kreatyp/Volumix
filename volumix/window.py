@@ -119,7 +119,7 @@ class MainWindow(QWidget):
         self.engine.targets = set(self.targets)
         self.engine.switch_mode = self.cfg["switch_mode"]
         self.engine.meters_an = self.cfg["meters"]
-        self.engine.speed_step = self._schrittweite()
+        self._tempo_uebernehmen()
 
         self.apps_bereit.connect(self._apps_uebernehmen)
         self.volume_bereit.connect(self._volume_uebernehmen)
@@ -347,10 +347,21 @@ class MainWindow(QWidget):
 
         # --- Steuerung ---
         k = Karte(T("steuerung"))
+        tempo_kopf = QHBoxLayout()
+        tempo_kopf.setSpacing(4)
+        tempo_kopf.addWidget(QLabel(T("geschwindigkeit")))
+        self.btn_tempo_hilfe = self._fragezeichen(T("tempo_hilfe"))
+        tempo_kopf.addWidget(self.btn_tempo_hilfe)
+        tempo_kopf.addStretch(1)
+        k.lay.addLayout(tempo_kopf)
         self.tempo_wert = QLabel("{} %".format(self.cfg["speed"]))
         k.lay.addLayout(self._regler_zeile(
-            T("geschwindigkeit"), self.cfg["speed"], 10, 100,
-            self._tempo_setzen, self.tempo_wert))
+            T("tempo_gesamt"), self.cfg["speed"], 10, 100,
+            self._tempo_setzen, self.tempo_wert, breite=76))
+        self.tempo_apps_wert = QLabel("{} %".format(self.cfg["speed_apps"]))
+        k.lay.addLayout(self._regler_zeile(
+            T("tempo_apps"), self.cfg["speed_apps"], 10, 100,
+            self._tempo_apps_setzen, self.tempo_apps_wert, breite=76))
         self.sw_aktiv = self._schalter_zeile(
             k, T("steuerung_aktiv"), self.cfg["active"], self._aktiv_setzen)
         self._schalter_zeile(
@@ -431,12 +442,12 @@ class MainWindow(QWidget):
         return seite
 
     def _regler_zeile(self, text, wert, lo, hi, rueckruf, anzeige,
-                      rastpunkte=()):
+                      rastpunkte=(), breite=160):
         z = QHBoxLayout()
         z.setContentsMargins(0, 5, 0, 5)      # Luft nach oben und unten
         z.setSpacing(14)
         lbl = QLabel(text)
-        lbl.setFixedWidth(160)
+        lbl.setFixedWidth(breite)
         z.addWidget(lbl)
         s = Slider(rastpunkte=rastpunkte)
         s.setRange(lo, hi)
@@ -495,9 +506,10 @@ class MainWindow(QWidget):
             if b is not None:
                 name = "sun" if (b is self.btn_modus and self.theme.hell) else b._symbol
                 b.setIcon(icons.pixmap(name, 19, self.theme.muted, dpr))
-        if getattr(self, "btn_hilfe", None) is not None:
-            self.btn_hilfe.setIcon(icons.pixmap("help", 16, self.theme.muted,
-                                                dpr))
+        for name in ("btn_hilfe", "btn_tempo_hilfe"):
+            b = getattr(self, name, None)
+            if b is not None:
+                b.setIcon(icons.pixmap("help", 16, self.theme.muted, dpr))
         for punkt in getattr(self, "farbknoepfe", {}).values():
             punkt.theme = self.theme
             punkt.update()
@@ -870,15 +882,28 @@ class MainWindow(QWidget):
         QTimer.singleShot(ms, self._status_setzen)
 
     # ---- Einstellungs-Rueckrufe ------------------------------------------
-    def _schrittweite(self):
-        s = max(10.0, min(100.0, float(self.cfg["speed"])))
+    def _schrittweite(self, prozent):
+        s = max(10.0, min(100.0, float(prozent)))
         return 0.8 + (s - 10.0) / 90.0 * 3.4        # 0,8 .. 4,2 Punkte
+
+    def _tempo_uebernehmen(self):
+        """Beide Schrittweiten an die Audio-Schicht durchreichen."""
+        self.engine.speed_step = self._schrittweite(self.cfg["speed"])
+        self.engine.speed_step_apps = self._schrittweite(
+            self.cfg["speed_apps"])
 
     def _tempo_setzen(self, wert):
         wert = int(round(wert / 10.0) * 10)
         self.cfg["speed"] = wert
         self.tempo_wert.setText("{} %".format(wert))
-        self.engine.speed_step = self._schrittweite()
+        self._tempo_uebernehmen()
+        self._speichern()
+
+    def _tempo_apps_setzen(self, wert):
+        wert = int(round(wert / 10.0) * 10)
+        self.cfg["speed_apps"] = wert
+        self.tempo_apps_wert.setText("{} %".format(wert))
+        self._tempo_uebernehmen()
         self._speichern()
 
     def _aktiv_setzen(self, an):

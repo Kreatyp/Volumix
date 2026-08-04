@@ -53,7 +53,10 @@ class AudioEngine:
         self.on_meters = on_meters
         self.jobs = queue.Queue()
         self.targets = set()
-        self.speed_step = 2.0          # Prozentpunkte je Rastung
+        # Prozentpunkte je Rastung. Getrennt, weil eine einzelne App feiner
+        # dosiert werden will als die Gesamtlautstaerke.
+        self.speed_step = 2.0          # Gesamtlautstaerke
+        self.speed_step_apps = 2.0     # einzelne Apps
         self.switch_mode = "none"
         self.meters_an = True
 
@@ -428,7 +431,11 @@ class AudioEngine:
         if not ziele:
             return
         by = self._by_key()
-        aenderung = delta * self.speed_step
+        # Gesamt und Apps schliessen sich aus – ein Blick auf die Ziele reicht,
+        # um zu wissen, welche Schrittweite gilt.
+        schritt = (self.speed_step if MASTER_KEY in ziele
+                   else self.speed_step_apps)
+        aenderung = delta * schritt
         for key in ziele:
             basis = self._ziel.get(key)
             if basis is None:

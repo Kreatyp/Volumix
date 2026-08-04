@@ -67,6 +67,20 @@ TEXTE = {
 
     # ---- Einstellungen: Steuerung ----
     "geschwindigkeit": ("Geschwindigkeit", "Speed"),
+    "tempo_gesamt": ("Gesamt", "Master"),
+    "tempo_apps": ("Apps", "Apps"),
+    "tempo_hilfe": (
+        "Wie weit ein Rasten am Rad oder ein Tastendruck die Lautstärke "
+        "bewegt.\n\n"
+        "Getrennt einstellbar, weil beides sich unterschiedlich anfühlt: "
+        "Die Gesamtlautstärke dreht man meist grob und schnell. Hängt "
+        "dagegen nur eine App am Rad, will man sie oft feiner treffen – "
+        "dann lohnt ein kleinerer Wert.",
+        "How far one notch of the wheel or one key press moves the volume."
+        "\n\n"
+        "Set separately because the two feel different: master volume is "
+        "usually a quick, rough adjustment. With a single app on the wheel "
+        "you often want to land precisely — a smaller value helps there."),
     "steuerung_aktiv": ("Steuerung aktiv", "Control active"),
     "scrollen_verwenden": ("Horizontales Scrollen verwenden",
                            "Use horizontal scrolling"),
