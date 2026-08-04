@@ -67,17 +67,40 @@ BALLAST = [
     "qtga.dll", "qwbmp.dll",
     # Zweiter Zeichenweg und Fenster ohne Bildschirm – beides ungenutzt
     "qdirect2d.dll", "qoffscreen.dll", "qminimal.dll",
+    # Weitere Zusatzteile, die eine reine Widget-App nie anfasst
+    "qpdf.dll", "qtvirtualkeyboardplugin.dll", "qtuiotouchplugin.dll",
+    "qnetworklistmanager.dll",
 ]
-BALLAST_ORDNER = ["qml", "translations", "PySide6/qml",
-                  "PySide6/translations",
-                  # Verschluesselung fuer Netzverbindungen, die es nicht gibt
-                  "PySide6/plugins/tls"]
+
+# Ganze Ordner, egal wo sie liegen. Frueher standen hier feste Pfade wie
+# "PySide6/translations" – die zeigten ins Leere, weil PyInstaller alles unter
+# `_internal` ablegt. Das Entfernen lief damit jedes Mal ins Nichts, ohne
+# sich zu beschweren. Deshalb jetzt ueber den Ordnernamen.
+BALLAST_ORDNER = [
+    "qml",             # QML-Laufzeit, die App ist reines Widget
+    "translations",    # Qt-Uebersetzungen; Volumix bringt eigene Texte mit
+    "tls",             # Verschluesselung fuer Netzverbindungen, die es nicht gibt
+]
 
 
 def ballast_entfernen(ordner):
     """Loescht Bestandteile, die Volumix nie benutzt."""
     weg = 0
-    for wurzel, ordner_liste, dateien in os.walk(ordner):
+
+    def groesse(pfad):
+        return sum(os.path.getsize(os.path.join(w, f))
+                   for w, _, fs in os.walk(pfad) for f in fs)
+
+    for wurzel, ordner_liste, dateien in os.walk(ordner, topdown=True):
+        for name in list(ordner_liste):
+            if name in BALLAST_ORDNER:
+                p = os.path.join(wurzel, name)
+                try:
+                    weg += groesse(p)
+                    shutil.rmtree(p)
+                    ordner_liste.remove(name)   # nicht hineinlaufen
+                except OSError:
+                    pass
         for d in dateien:
             if d in BALLAST:
                 p = os.path.join(wurzel, d)
@@ -86,15 +109,6 @@ def ballast_entfernen(ordner):
                     os.remove(p)
                 except OSError:
                     pass
-    for rel in BALLAST_ORDNER:
-        p = os.path.join(ordner, *rel.split("/"))
-        if os.path.isdir(p):
-            try:
-                weg += sum(os.path.getsize(os.path.join(w, f))
-                           for w, _, fs in os.walk(p) for f in fs)
-                shutil.rmtree(p)
-            except OSError:
-                pass
     if weg:
         print("Ballast entfernt: {:.1f} MB".format(weg / (1024 * 1024)))
 
