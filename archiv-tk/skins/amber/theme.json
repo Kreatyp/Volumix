@@ -1,0 +1,7 @@
+{
+  "name": "Bernstein",
+
+  "accent":       { "dark": "#FFB224", "light": "#D97706" },
+  "accent_hover": { "dark": "#FFC453", "light": "#B45309" },
+  "red":          { "dark": "#FF5C7C", "light": "#E5484D" }
+}

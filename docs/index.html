@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Volumix — one app at a time</title>
+<meta name="description" content="Windows changes every app at once. Volumix puts your volume keys and mouse thumbwheel on the apps you choose. Free, no installer.">
+<link rel="icon" href="bilder/mixer-violet-dark.png">
+
+<style>
+:root{
+  --grund:#0A0B0F;
+  --karte:#14161C;
+  --karte2:#1E2129;
+  --linie:#282C36;
+  --fg:#F2F4F8;
+  --leise:#858C9E;
+  --akzent:#7C5CFF;
+  --sys:"Segoe UI Variable Display","Segoe UI",-apple-system,system-ui,sans-serif;
+  --mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--grund); color:var(--fg);
+  font-family:var(--sys); font-size:17px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+img{max-width:100%; height:auto; display:block}
+.bahn{max-width:1000px; margin:0 auto; padding:0 26px}
+
+/* Kennzeichnung der Abschnitte – schmal wie ein Kanalzug-Aufdruck */
+.kennung{
+  font-family:var(--mono); font-size:11px; letter-spacing:.22em;
+  text-transform:uppercase; color:var(--leise); margin:0 0 26px;
+  display:flex; align-items:center; gap:14px;
+}
+.kennung::after{
+  content:""; flex:1; height:3px; border-radius:2px;
+  background:linear-gradient(90deg,var(--akzent) 0 22%,var(--linie) 22% 100%);
+}
+
+/* ---------- Kopf ---------- */
+.kopf{padding:clamp(56px,9vw,104px) 0 clamp(30px,5vw,52px)}
+.marke{width:min(300px,58vw); margin:0 0 30px}
+h1{
+  font-size:clamp(34px,6.2vw,66px); line-height:1.02; letter-spacing:-.035em;
+  font-weight:700; margin:0 0 22px; max-width:14ch;
+}
+h1 span{color:var(--leise)}
+.sub{font-size:18px; color:var(--leise); margin:0 0 34px; max-width:46ch}
+.laden{display:flex; flex-wrap:wrap; align-items:center; gap:20px}
+.knopf{
+  display:inline-flex; align-items:center; gap:11px;
+  background:var(--akzent); color:#fff; font-family:inherit;
+  font-size:17px; font-weight:600; padding:16px 30px; border-radius:14px;
+  border:none; cursor:pointer; text-decoration:none;
+  box-shadow:0 12px 30px -12px var(--akzent);
+  transition:transform .14s, box-shadow .14s, background .3s;
+}
+.knopf:hover{transform:translateY(-2px); box-shadow:0 18px 38px -14px var(--akzent)}
+.knopf:active{transform:translateY(0)}
+.knopf:focus-visible{outline:2px solid var(--fg); outline-offset:3px}
+.knopf svg{width:19px; height:19px}
+.klein{font-family:var(--mono); font-size:12.5px; color:var(--leise)}
+
+/* ---------- Vorführung ---------- */
+.probe{padding:clamp(30px,5vw,50px) 0 clamp(56px,8vw,90px)}
+.pult{
+  background:var(--karte); border:1px solid var(--linie); border-radius:20px;
+  padding:clamp(20px,3vw,30px);
+}
+.umschalter{display:flex; gap:6px; background:var(--grund); border-radius:11px;
+  padding:5px; width:max-content; margin:0 0 24px; border:1px solid var(--linie)}
+.umschalter button{
+  font-family:inherit; font-size:14.5px; font-weight:600; color:var(--leise);
+  background:none; border:none; padding:9px 20px; border-radius:8px; cursor:pointer;
+  transition:color .15s, background .15s;
+}
+.umschalter button[aria-pressed="true"]{background:var(--akzent); color:#fff}
+.umschalter button:focus-visible{outline:2px solid var(--fg); outline-offset:2px}
+
+/* Haken, Kachel, Name, Balken (dehnt sich), Zahl */
+.spur{display:grid; grid-template-columns:22px 34px 124px 1fr 56px;
+  align-items:center; gap:0 14px; padding:11px 0}
+.kachel{
+  width:34px; height:34px; border-radius:10px; display:grid; place-items:center;
+  font-weight:700; font-size:14px; color:#fff; background:var(--karte2);
+}
+.spur .name{font-size:15.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.balken{height:8px; border-radius:4px; background:var(--karte2); position:relative}
+.balken i{
+  position:absolute; inset:0 auto 0 0; border-radius:4px; background:var(--akzent);
+  transition:width .18s cubic-bezier(.3,.9,.4,1), background .3s;
+}
+.spur .zahl{font-family:var(--mono); font-size:14px; text-align:right; color:var(--leise)}
+.spur[data-ziel="true"] .name{font-weight:650; color:var(--fg)}
+.spur[data-ziel="false"] .name{color:var(--leise)}
+
+.haken{
+  width:22px; height:22px; border-radius:7px; border:none; cursor:pointer;
+  background:var(--karte2); display:grid; place-items:center; padding:0;
+  transition:background .15s;
+}
+.haken svg{width:13px; height:13px; color:#fff; opacity:0}
+.spur[data-ziel="true"] .haken{background:var(--akzent)}
+.spur[data-ziel="true"] .haken svg{opacity:1}
+.haken:focus-visible{outline:2px solid var(--fg); outline-offset:2px}
+.haken[disabled]{opacity:.35; cursor:default}
+
+.tasten{
+  display:flex; align-items:center; gap:14px; margin:22px 0 0;
+  padding-top:22px; border-top:1px solid var(--linie); flex-wrap:wrap;
+}
+.taste{
+  font-family:var(--mono); font-size:13px; font-weight:600; color:var(--fg);
+  background:var(--karte2); border:1px solid var(--linie); border-radius:10px;
+  padding:11px 18px; cursor:pointer; display:inline-flex; align-items:center; gap:9px;
+  transition:border-color .15s, background .15s;
+}
+.taste:hover{border-color:var(--akzent); background:var(--linie)}
+.taste:focus-visible{outline:2px solid var(--fg); outline-offset:2px}
+.taste svg{width:14px; height:14px}
+.fazit{margin:0; font-size:15px; color:var(--leise)}
+.fazit b{color:var(--fg); font-weight:600}
+
+/* ---------- Bild ---------- */
+.schau{padding:0 0 clamp(56px,8vw,90px)}
+.rahmen{
+  border-radius:18px; overflow:hidden; border:1px solid var(--linie);
+  width:min(560px,100%); margin:0 auto;
+  box-shadow:0 30px 60px -28px rgba(0,0,0,.9);
+}
+.regale{display:flex; flex-wrap:wrap; justify-content:center; align-items:center;
+  gap:9px; margin:26px auto 0; max-width:496px}
+.punkt{width:30px; height:30px; border-radius:50%; border:none; padding:0;
+  cursor:pointer; background:none; position:relative}
+.punkt i{position:absolute; inset:4px; border-radius:50%; background:var(--farbe);
+  transition:inset .14s}
+.punkt:hover i{inset:2px}
+.punkt[aria-pressed="true"]{box-shadow:inset 0 0 0 2px var(--fg)}
+.punkt:focus-visible{outline:2px solid var(--fg); outline-offset:2px}
+.hellDunkel{display:flex; gap:5px; margin:20px auto 0; width:max-content;
+  background:var(--karte); border:1px solid var(--linie); border-radius:10px; padding:4px}
+.hellDunkel button{
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--leise); background:none; border:none;
+  padding:7px 14px; border-radius:7px; cursor:pointer;
+}
+.hellDunkel button[aria-pressed="true"]{background:var(--karte2); color:var(--fg)}
+.hellDunkel button:focus-visible{outline:2px solid var(--fg); outline-offset:2px}
+
+/* ---------- Listen ---------- */
+section{padding:clamp(46px,7vw,74px) 0; border-top:1px solid var(--linie)}
+.stuecke{display:grid; gap:2px; grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.stueck{padding:20px 22px 22px; background:var(--karte); border-radius:14px}
+.stueck h3{font-size:16px; font-weight:650; margin:0 0 6px; letter-spacing:-.01em}
+.stueck p{margin:0; color:var(--leise); font-size:15px}
+.dazu{margin:22px 0 0; color:var(--leise); font-size:14.5px}
+
+.schritte{list-style:none; counter-reset:s; margin:0; padding:0;
+  display:grid; gap:2px; grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.schritte li{
+  counter-increment:s; background:var(--karte); border-radius:14px;
+  padding:20px 22px 22px; font-size:15px; color:var(--leise);
+}
+.schritte li::before{
+  content:counter(s); display:block; font-family:var(--mono); font-size:12px;
+  color:var(--akzent); margin-bottom:9px;
+}
+.schritte b{color:var(--fg); font-weight:650; font-size:16px; display:block; margin-bottom:5px}
+code{font-family:var(--mono); font-size:.88em; background:var(--karte2);
+  padding:2px 6px; border-radius:5px}
+
+footer{padding:40px 0 60px; border-top:1px solid var(--linie);
+  color:var(--leise); font-size:13.5px}
+footer p{margin:0 0 8px}
+
+@media (max-width:560px){
+  .spur{grid-template-columns:20px 28px 76px 1fr 46px; gap:0 10px}
+  .kachel{width:28px; height:28px; font-size:13px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{transition:none !important}
+}
+</style>
+</head>
+<body>
+
+<header class="kopf">
+  <div class="bahn">
+    <img class="marke" src="bilder/wortmarke.png" alt="Volumix" width="1464" height="240">
+    <h1>Turn one app down. <span>The game stays loud.</span></h1>
+    <p class="sub">Windows moves everything at once. Volumix puts your volume keys —
+      or the thumbwheel on your mouse — on the apps you pick.</p>
+    <div class="laden">
+      <!-- ADRESSE DER PROGRAMMDATEI ================================
+           Steht hier nur einmal. Lokal zeigt sie in den Nachbarordner
+           `paket`. Nach dem Hochladen hier die oeffentliche Adresse
+           eintragen, z. B. eine GitHub-Release-Datei.
+           Das ZIP selbst darf NICHT nach Cloudflare Pages: dort ist bei
+           25 MiB pro Datei Schluss, das Paket hat 27,4.
+           ========================================================== -->
+      <a class="knopf" href="../paket/Volumix-2026-08-04.zip" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3v12M7 10.5l5 5 5-5M4 20h16"/>
+        </svg>
+        Download for Windows
+      </a>
+      <p class="klein">ZIP · 27 MB · no installer</p>
+    </div>
+  </div>
+</header>
+
+<div class="probe">
+  <div class="bahn">
+    <p class="kennung">Try it</p>
+    <div class="pult">
+      <div class="umschalter" role="group" aria-label="Control mode">
+        <button type="button" id="modusWindows" aria-pressed="true">Windows</button>
+        <button type="button" id="modusVolumix" aria-pressed="false">Volumix</button>
+      </div>
+
+      <div id="spuren"></div>
+
+      <div class="tasten">
+        <button class="taste" type="button" id="lauter">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15l7-7 7 7"/></svg>
+          Volume up
+        </button>
+        <button class="taste" type="button" id="leiser">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9l7 7 7-7"/></svg>
+          Volume down
+        </button>
+        <p class="fazit" id="fazit"><b>Windows:</b> everything moves together.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="schau">
+  <div class="bahn">
+    <div class="rahmen">
+      <img id="schaubild" src="bilder/mixer-violet-dark.png"
+           alt="The Volumix window: master volume on top, then Chrome, Discord, Spotify and system sounds, each with its own slider and percentage."
+           width="840" height="824">
+    </div>
+    <div class="regale" id="farben" role="group" aria-label="Accent colour"></div>
+    <div class="hellDunkel" role="group" aria-label="Light or dark">
+      <button type="button" id="btnDark" aria-pressed="true">Dark</button>
+      <button type="button" id="btnLight" aria-pressed="false">Light</button>
+    </div>
+  </div>
+</div>
+
+<section>
+  <div class="bahn">
+    <p class="kennung">What you get</p>
+    <div class="stuecke">
+      <div class="stueck">
+        <h3>Per-app faders</h3>
+        <p>Every program that makes sound gets its own.</p>
+      </div>
+      <div class="stueck">
+        <h3>Live meters</h3>
+        <p>See which app is actually making noise.</p>
+      </div>
+      <div class="stueck">
+        <h3>Profiles</h3>
+        <p>Save all levels, restore with one click.</p>
+      </div>
+      <div class="stueck">
+        <h3>Overlay</h3>
+        <p>A small readout while you turn. Size and place are yours.</p>
+      </div>
+    </div>
+    <p class="dazu">English and German · light and dark · twelve accents · lives in the tray</p>
+  </div>
+</section>
+
+<section>
+  <div class="bahn">
+    <p class="kennung">Setup</p>
+    <ol class="schritte">
+      <li><b>Unzip it</b>Anywhere you like. There is no installer.</li>
+      <li><b>Run <code>Volumix.exe</code></b>SmartScreen asks once — <em>More info</em>, then <em>Run anyway</em>.</li>
+      <li><b>Click a row</b>That app is now on your wheel. Several at once is fine.</li>
+    </ol>
+  </div>
+</section>
+
+<footer>
+  <div class="bahn">
+    <p>Free · Windows 11, 64-bit · no account, and no network code in the build.</p>
+    <p>Wordmark set in “Ode to Idle Gaming” by Chequered Ink. App icons belong to
+      their makers and are shown for illustration.</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var PALETTE = [
+    ["violet", "Violet", "#7C5CFF"], ["blue", "Blue", "#3B82F6"],
+    ["teal", "Teal", "#14B8A6"], ["green", "Green", "#22C55E"],
+    ["lime", "Lime", "#84CC16"], ["amber", "Amber", "#F59E0B"],
+    ["orange", "Orange", "#F97316"], ["red", "Red", "#EF4444"],
+    ["pink", "Pink", "#EC4899"], ["purple", "Purple", "#A855F7"],
+    ["slate", "Slate", "#64748B"], ["gray", "Grey", "#9CA3AF"]
+  ];
+
+  var wurzel = document.documentElement;
+
+  /* ---- Vorfuehrung: dieselbe Taste, zwei Ergebnisse ---- */
+  var SPUREN = [
+    { name: "Game", kurz: "G", wert: 90, ziel: false, farbe: "#3F4654" },
+    { name: "Chrome", kurz: "C", wert: 70, ziel: true, farbe: "#4B5263" },
+    { name: "Spotify", kurz: "S", wert: 55, ziel: false, farbe: "#3F4654" }
+  ];
+  var volumix = false;
+  var behaelter = document.getElementById("spuren");
+  var fazit = document.getElementById("fazit");
+
+  SPUREN.forEach(function (s, i) {
+    var zeile = document.createElement("div");
+    zeile.className = "spur";
+    zeile.dataset.ziel = String(s.ziel);
+    zeile.innerHTML =
+      '<span class="kachel" style="background:' + s.farbe + '">' + s.kurz + '</span>' +
+      '<span class="name">' + s.name + '</span>' +
+      '<span class="balken"><i style="width:' + s.wert + '%"></i></span>' +
+      '<span class="zahl">' + s.wert + '%</span>';
+    var haken = document.createElement("button");
+    haken.type = "button";
+    haken.className = "haken";
+    haken.disabled = true;
+    haken.setAttribute("aria-label", "Put " + s.name + " on the volume keys");
+    haken.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+    haken.addEventListener("click", function () {
+      if (!volumix) { return; }
+      SPUREN[i].ziel = !SPUREN[i].ziel;
+      zeichnen();
+    });
+    zeile.insertBefore(haken, zeile.firstChild);
+    behaelter.appendChild(zeile);
+  });
+
+  function zeichnen() {
+    Array.prototype.forEach.call(behaelter.children, function (zeile, i) {
+      var s = SPUREN[i];
+      zeile.dataset.ziel = String(volumix && s.ziel);
+      zeile.querySelector(".balken i").style.width = s.wert + "%";
+      zeile.querySelector(".zahl").textContent = s.wert + "%";
+      zeile.querySelector(".haken").disabled = !volumix;
+    });
+    fazit.innerHTML = volumix
+      ? "<b>Volumix:</b> only the ticked app moves."
+      : "<b>Windows:</b> everything moves together.";
+  }
+
+  function regeln(schritt) {
+    SPUREN.forEach(function (s) {
+      if (!volumix || s.ziel) {
+        s.wert = Math.max(0, Math.min(100, s.wert + schritt));
+      }
+    });
+    zeichnen();
+  }
+
+  document.getElementById("lauter").addEventListener("click", function () { regeln(10); });
+  document.getElementById("leiser").addEventListener("click", function () { regeln(-10); });
+
+  var knopfW = document.getElementById("modusWindows");
+  var knopfV = document.getElementById("modusVolumix");
+  function modus(anVolumix) {
+    volumix = anVolumix;
+    knopfW.setAttribute("aria-pressed", String(!anVolumix));
+    knopfV.setAttribute("aria-pressed", String(anVolumix));
+    zeichnen();
+  }
+  knopfW.addEventListener("click", function () { modus(false); });
+  knopfV.addEventListener("click", function () { modus(true); });
+
+  /* ---- Bild: Farbe und Modus ---- */
+  var bild = document.getElementById("schaubild");
+  var farbzeile = document.getElementById("farben");
+  var akzent = "violet";
+  var dunkel = true;
+
+  function bildSetzen() {
+    var farbe = PALETTE.filter(function (p) { return p[0] === akzent; })[0];
+    wurzel.style.setProperty("--akzent", farbe[2]);
+    bild.src = "bilder/mixer-" + akzent + "-" + (dunkel ? "dark" : "light") + ".png";
+    Array.prototype.forEach.call(farbzeile.children, function (b) {
+      b.setAttribute("aria-pressed", b.dataset.key === akzent ? "true" : "false");
+    });
+    document.getElementById("btnDark").setAttribute("aria-pressed", String(dunkel));
+    document.getElementById("btnLight").setAttribute("aria-pressed", String(!dunkel));
+  }
+
+  PALETTE.forEach(function (p) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "punkt";
+    b.dataset.key = p[0];
+    b.title = p[1];
+    b.setAttribute("aria-label", "Accent " + p[1]);
+    var i = document.createElement("i");
+    i.style.setProperty("--farbe", p[2]);
+    b.appendChild(i);
+    b.addEventListener("click", function () { akzent = p[0]; bildSetzen(); });
+    farbzeile.appendChild(b);
+  });
+
+  document.getElementById("btnDark").addEventListener("click", function () {
+    dunkel = true; bildSetzen();
+  });
+  document.getElementById("btnLight").addEventListener("click", function () {
+    dunkel = false; bildSetzen();
+  });
+
+  window.addEventListener("load", function () {
+    PALETTE.forEach(function (p) {
+      ["dark", "light"].forEach(function (m) {
+        new Image().src = "bilder/mixer-" + p[0] + "-" + m + ".png";
+      });
+    });
+  });
+
+  zeichnen();
+  bildSetzen();
+}());
+</script>
+</body>
+</html>

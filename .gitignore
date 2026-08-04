@@ -1,0 +1,14 @@
+# Gebaute App und Download-Paket – entstehen beide aus dem Quelltext.
+# `python build_exe.py` stellt sie jederzeit wieder her.
+/programm/
+/paket/
+
+# Python-Zwischenstände
+__pycache__/
+*.pyc
+
+# Ablage der Testreihen (eigene Einstellungen, damit Tests nichts verstellen)
+/tests/testcfg/
+
+# Örtliche Werkzeug-Einstellungen, gehören nicht ins Repository
+/.claude/

@@ -1,0 +1,7 @@
+{
+  "name": "Mint",
+
+  "accent":       { "dark": "#3DD68C", "light": "#12A669" },
+  "accent_hover": { "dark": "#54E39C", "light": "#0E8A58" },
+  "red":          { "dark": "#FF5C7C", "light": "#E5484D" }
+}
