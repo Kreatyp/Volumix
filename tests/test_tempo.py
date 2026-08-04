@@ -65,15 +65,18 @@ print("\n=== Die Audio-Schicht waehlt die richtige Schrittweite ===")
 motor = AudioEngine()          # nicht gestartet – wir rufen direkt hinein
 motor.speed_step = 4.0         # Gesamt: grob
 motor.speed_step_apps = 1.0    # Apps: fein
+motor.speed_curve = False      # erst ohne Pegelanpassung pruefen
 motor._by_key = lambda: {}
-motor.prozent = lambda key, by=None: 50.0
+_pegel = {"wert": 50.0}
+motor.prozent = lambda key, by=None: _pegel["wert"]
 
 
-def eine_rastung(ziele):
+def eine_rastung(ziele, start=50.0, delta=1):
+    _pegel["wert"] = start
     motor.targets = set(ziele)
     motor._ziel.clear()
     motor._jetzt.clear()
-    motor._scroll_anwenden(1)
+    motor._scroll_anwenden(delta)
     return {k: round(v, 2) for k, v in motor._ziel.items()}
 
 
@@ -87,6 +90,25 @@ mehrere = eine_rastung(["spotify.exe", "chrome.exe"])
 pruefe("mehrere Apps ebenfalls fein",
        all(v == 51.0 for v in mehrere.values()), str(mehrere))
 
+print("\n=== Leise feiner regeln ===")
+motor.speed_curve = True
+leise = eine_rastung(["spotify.exe"], start=5.0)["spotify.exe"] - 5.0
+mitte = eine_rastung(["spotify.exe"], start=50.0)["spotify.exe"] - 50.0
+laut = eine_rastung(["spotify.exe"], start=90.0)["spotify.exe"] - 90.0
+pruefe("in der Mitte bleibt der eingestellte Schritt",
+       abs(mitte - 1.0) < 0.01, "{:.2f} Punkte".format(mitte))
+pruefe("leise deutlich kleiner", leise < mitte * 0.45,
+       "{:.2f} gegen {:.2f} Punkte".format(leise, mitte))
+pruefe("laut etwas groesser", laut > mitte * 1.4,
+       "{:.2f} gegen {:.2f} Punkte".format(laut, mitte))
+pruefe("nach unten genauso", eine_rastung(["spotify.exe"], 5.0, -1)["spotify.exe"] > 5.0 - mitte,
+       "bei 5 % bremst es auch abwaerts")
+
+motor.speed_curve = False
+ohne = eine_rastung(["spotify.exe"], start=5.0)["spotify.exe"] - 5.0
+pruefe("ausgeschaltet wieder ueberall gleich", abs(ohne - 1.0) < 0.01,
+       "{:.2f} Punkte".format(ohne))
+
 print("\n=== Einstellungen im Fenster ===")
 app = QApplication(sys.argv)
 app.setQuitOnLastWindowClosed(False)
@@ -97,6 +119,21 @@ for _ in range(80):
     if f.rows:
         break
     time.sleep(0.05)
+
+print("\n--- Reglerskala ---")
+langsam = f._schrittweite(10)
+schnell = f._schrittweite(100)
+pruefe("100 % bleibt bei 4,2 Punkten", abs(schnell - 4.2) < 0.01,
+       "{:.2f}".format(schnell))
+pruefe("10 % ist deutlich langsamer als frueher (war 0,8)", langsam <= 0.25,
+       "{:.2f} Punkte".format(langsam))
+# Gleiche Reglerwege sollen sich gleich stark anfuehlen, nicht gleich viel
+# Prozentpunkte bedeuten – deshalb waechst die Skala geometrisch.
+v = [f._schrittweite(p) for p in (10, 40, 70, 100)]
+paare = [v[i + 1] / v[i] for i in range(3)]
+pruefe("Skala waechst gleichmaessig (nicht linear)",
+       max(paare) - min(paare) < 0.01,
+       "Faktoren " + ", ".join("{:.2f}".format(x) for x in paare))
 
 f._tempo_setzen(100)
 f._tempo_apps_setzen(10)
@@ -111,6 +148,14 @@ pruefe("Anzeige folgt", f.tempo_wert.text() == "100 %"
        and f.tempo_apps_wert.text() == "10 %",
        "{} / {}".format(f.tempo_wert.text(), f.tempo_apps_wert.text()))
 pruefe("auf der Platte gelandet", config.load()["speed_apps"] == 10)
+
+f._tempo_kurve_setzen(False)
+pruefe("Kurve abschaltbar",
+       not f.cfg["speed_curve"] and not f.engine.speed_curve)
+f._tempo_kurve_setzen(True)
+pruefe("und wieder an",
+       f.cfg["speed_curve"] and f.engine.speed_curve
+       and config.load()["speed_curve"])
 
 print("\n{}".format("Alles gruen." if not fehler
                     else "{} Test(s) fehlgeschlagen!".format(fehler)))

@@ -69,6 +69,20 @@ TEXTE = {
     "geschwindigkeit": ("Geschwindigkeit", "Speed"),
     "tempo_gesamt": ("Gesamt", "Master"),
     "tempo_apps": ("Apps", "Apps"),
+    "tempo_kurve": ("Leise feiner regeln", "Finer when quiet"),
+    "tempo_kurve_hilfe": (
+        "Ein fester Schritt trifft nicht überall gleich: Bei 5 % Lautstärke "
+        "sind vier Prozentpunkte fast eine Verdopplung, bei 80 % hört man "
+        "sie kaum.\n\n"
+        "Ist das an, richtet sich der Schritt nach dem aktuellen Pegel — "
+        "unten kleiner, oben größer. In der Mitte bleibt er so, wie du ihn "
+        "eingestellt hast.",
+        "A fixed step does not land the same everywhere: at 5 % volume four "
+        "percentage points are almost a doubling; at 80 % you barely hear "
+        "them.\n\n"
+        "With this on, the step follows the current level — smaller at the "
+        "bottom, larger at the top. In the middle it stays exactly as you "
+        "set it."),
     "tempo_hilfe": (
         "Wie weit ein Rasten am Rad oder ein Tastendruck die Lautstärke "
         "bewegt.\n\n"

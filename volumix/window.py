@@ -150,6 +150,7 @@ class MainWindow(QWidget):
 
     # ---- Aufbau ----------------------------------------------------------
     def _aufbauen(self):
+        self._hilfe_knoepfe = []      # beim Neuaufbau wieder von vorn
         aussen = QVBoxLayout(self)
         aussen.setContentsMargins(18, 16, 18, 14)
         aussen.setSpacing(10)
@@ -350,8 +351,7 @@ class MainWindow(QWidget):
         tempo_kopf = QHBoxLayout()
         tempo_kopf.setSpacing(4)
         tempo_kopf.addWidget(QLabel(T("geschwindigkeit")))
-        self.btn_tempo_hilfe = self._fragezeichen(T("tempo_hilfe"))
-        tempo_kopf.addWidget(self.btn_tempo_hilfe)
+        tempo_kopf.addWidget(self._fragezeichen(T("tempo_hilfe")))
         tempo_kopf.addStretch(1)
         k.lay.addLayout(tempo_kopf)
         self.tempo_wert = QLabel("{} %".format(self.cfg["speed"]))
@@ -362,6 +362,9 @@ class MainWindow(QWidget):
         k.lay.addLayout(self._regler_zeile(
             T("tempo_apps"), self.cfg["speed_apps"], 10, 100,
             self._tempo_apps_setzen, self.tempo_apps_wert, breite=76))
+        self._schalter_zeile(
+            k, T("tempo_kurve"), self.cfg["speed_curve"],
+            self._tempo_kurve_setzen, hilfe=T("tempo_kurve_hilfe"))
         self.sw_aktiv = self._schalter_zeile(
             k, T("steuerung_aktiv"), self.cfg["active"], self._aktiv_setzen)
         self._schalter_zeile(
@@ -459,7 +462,7 @@ class MainWindow(QWidget):
         z.addWidget(anzeige)
         return z
 
-    def _schalter_zeile(self, karte, text, wert, rueckruf):
+    def _schalter_zeile(self, karte, text, wert, rueckruf, hilfe=None):
         """Schalterzeile – die ganze Zeile schaltet um, nicht nur der Knopf."""
         zeile = _KlickZeile()
         # Ohne das schrumpft die Zeile auf ihren Inhalt und der Schalter
@@ -467,7 +470,14 @@ class MainWindow(QWidget):
         zeile.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         z = QHBoxLayout(zeile)
         z.setContentsMargins(0, 3, 0, 3)
-        z.addWidget(QLabel(text), 1)
+        if hilfe:
+            z.setSpacing(4)
+            z.addWidget(QLabel(text))
+            # Der Knopf verschluckt den Klick, die Zeile schaltet dabei nicht um
+            z.addWidget(self._fragezeichen(hilfe))
+            z.addStretch(1)
+        else:
+            z.addWidget(QLabel(text), 1)
         sw = ToggleSwitch(wert, self.theme)
         sw.toggled.connect(rueckruf)
         z.addWidget(sw)
@@ -485,6 +495,8 @@ class MainWindow(QWidget):
         b.setIcon(icons.pixmap("help", 16, self.theme.muted))
         b.setIconSize(QSize(16, 16))
         b.setToolTip(text)
+        # Gesammelt, damit sie beim Farb- oder Moduswechsel mitgezogen werden
+        self._hilfe_knoepfe.append(b)
         return b
 
     # ---- Aussehen --------------------------------------------------------
@@ -506,10 +518,8 @@ class MainWindow(QWidget):
             if b is not None:
                 name = "sun" if (b is self.btn_modus and self.theme.hell) else b._symbol
                 b.setIcon(icons.pixmap(name, 19, self.theme.muted, dpr))
-        for name in ("btn_hilfe", "btn_tempo_hilfe"):
-            b = getattr(self, name, None)
-            if b is not None:
-                b.setIcon(icons.pixmap("help", 16, self.theme.muted, dpr))
+        for b in getattr(self, "_hilfe_knoepfe", []):
+            b.setIcon(icons.pixmap("help", 16, self.theme.muted, dpr))
         for punkt in getattr(self, "farbknoepfe", {}).values():
             punkt.theme = self.theme
             punkt.update()
@@ -882,20 +892,37 @@ class MainWindow(QWidget):
         QTimer.singleShot(ms, self._status_setzen)
 
     # ---- Einstellungs-Rueckrufe ------------------------------------------
+    # Langsamster und schnellster Schritt in Prozentpunkten je Rastung
+    TEMPO_MIN = 0.2
+    TEMPO_MAX = 4.2
+
     def _schrittweite(self, prozent):
+        """Prozentwert vom Regler in Prozentpunkte je Rastung.
+
+        Bewusst nicht linear: Zwischen 0,2 und 0,4 Punkten liegen Welten,
+        zwischen 3,8 und 4,0 kaum etwas. Gleichmaessig verteilt waere der
+        ganze feine Bereich auf den ersten Millimetern des Reglers.
+        """
         s = max(10.0, min(100.0, float(prozent)))
-        return 0.8 + (s - 10.0) / 90.0 * 3.4        # 0,8 .. 4,2 Punkte
+        anteil = (s - 10.0) / 90.0
+        return self.TEMPO_MIN * (self.TEMPO_MAX / self.TEMPO_MIN) ** anteil
 
     def _tempo_uebernehmen(self):
-        """Beide Schrittweiten an die Audio-Schicht durchreichen."""
+        """Beide Schrittweiten und die Pegelanpassung durchreichen."""
         self.engine.speed_step = self._schrittweite(self.cfg["speed"])
         self.engine.speed_step_apps = self._schrittweite(
             self.cfg["speed_apps"])
+        self.engine.speed_curve = bool(self.cfg["speed_curve"])
 
     def _tempo_setzen(self, wert):
         wert = int(round(wert / 10.0) * 10)
         self.cfg["speed"] = wert
         self.tempo_wert.setText("{} %".format(wert))
+        self._tempo_uebernehmen()
+        self._speichern()
+
+    def _tempo_kurve_setzen(self, an):
+        self.cfg["speed_curve"] = bool(an)
         self._tempo_uebernehmen()
         self._speichern()
 

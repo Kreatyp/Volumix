@@ -57,6 +57,7 @@ class AudioEngine:
         # dosiert werden will als die Gesamtlautstaerke.
         self.speed_step = 2.0          # Gesamtlautstaerke
         self.speed_step_apps = 2.0     # einzelne Apps
+        self.speed_curve = True        # kleinere Schritte bei leisen Pegeln
         self.switch_mode = "none"
         self.meters_an = True
 
@@ -425,6 +426,18 @@ class AudioEngine:
         self._jetzt.clear()
 
     # ---- Daumenrad -------------------------------------------------------
+    def _kruemmung(self, pegel):
+        """Wie stark ein Schritt beim aktuellen Pegel ausfaellt.
+
+        Bei 5 % Lautstaerke sind vier Prozentpunkte fast eine Verdopplung, bei
+        80 % kaum zu hoeren. Ist die Anpassung an, wird der Schritt unten
+        kleiner und oben groesser – in der Mitte bleibt er, wie eingestellt.
+        """
+        if not self.speed_curve:
+            return 1.0
+        p = max(0.0, min(100.0, pegel))
+        return 0.28 + 1.44 * (p / 100.0)      # 0 % -> 0,28x, 50 % -> 1x, 100 % -> 1,72x
+
     def _scroll_anwenden(self, delta):
         """Setzt nur das Ziel – gefahren wird in kleinen Schritten."""
         ziele = list(self.targets)
@@ -435,7 +448,6 @@ class AudioEngine:
         # um zu wissen, welche Schrittweite gilt.
         schritt = (self.speed_step if MASTER_KEY in ziele
                    else self.speed_step_apps)
-        aenderung = delta * schritt
         for key in ziele:
             basis = self._ziel.get(key)
             if basis is None:
@@ -443,7 +455,10 @@ class AudioEngine:
                 if basis is None:
                     continue
                 self._jetzt[key] = basis
-            ziel = max(0.0, min(100.0, basis + aenderung))
+            # Der Schritt haengt am aktuellen Pegel, nicht nur an der
+            # Einstellung – deshalb hier drin und je Ziel einzeln.
+            ziel = max(0.0, min(100.0,
+                                basis + delta * schritt * self._kruemmung(basis)))
             self._ziel[key] = ziel
             weg = abs(ziel - self._jetzt.get(key, ziel))
             self._schritt[key] = max(1, int(weg / 5.0 + 0.5))

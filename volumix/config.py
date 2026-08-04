@@ -24,6 +24,7 @@ DEFAULTS = {
     # App feiner dosiert werden will als die Gesamtlautstaerke.
     "speed": 40,             # Gesamtlautstaerke
     "speed_apps": 20,        # einzelne Apps
+    "speed_curve": True,     # leise Pegel in kleineren Schritten regeln
     "reverse": False,
     "active": True,
     "media_keys": False,     # Lautstaerke-Tasten statt Daumenrad
