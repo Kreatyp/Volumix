@@ -40,9 +40,15 @@ DEFAULTS = {
     "hidden": None,          # ausgeblendete Apps (None = Standardliste)
     "known": [],             # je gesehene Apps (Namensspeicher)
     "exes": {},              # key -> Pfad zur Programmdatei
-    "profiles": {},          # Name -> {"master": 0.5, "apps": {key: 0.3}}
+    "profiles": {},          # Name -> Profil, siehe PROFIL_TEILE
+    "profil": "",            # Name des aktiven Profils
     "window_h": 720,
 }
+
+# Was zu einem Profil gehoert. Alles andere in DEFAULTS gilt fuer das ganze
+# Programm – Sprache, Autostart, Eingabeart und so weiter aendern sich nicht
+# mit dem Profil, weil sie am Rechner haengen und nicht an der Stimmung.
+PROFIL_TEILE = ["mode", "accent", "speed", "speed_apps", "speed_curve"]
 
 # Prozesse, die zwar eine Audiositzung anlegen, aber praktisch nie Ton machen.
 DEFAULT_HIDDEN = [

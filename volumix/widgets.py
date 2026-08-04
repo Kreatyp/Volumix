@@ -518,26 +518,10 @@ class MixerRow(QWidget):
         if e.button() == Qt.LeftButton:
             self.toggled.emit(self.key, not self._gewaehlt)
 
-    def wheelEvent(self, e):
-        """Mausrad ueber der Zeile regelt genau diese App.
-
-        Ohne Anhaken, ohne Ziel setzen – Zeiger drauf und drehen.
-        """
-        # Immer annehmen, auch wenn nichts passiert: sonst scrollt mal die
-        # Liste und mal nicht, je nachdem ob die Zeile stumm ist.
-        e.accept()
-        rastungen = e.angleDelta().y() / 120.0
-        if not rastungen:
-            return
-        neu = max(0, min(100,
-                         self.regler.value() + int(round(rastungen * 4))))
-        self._selbst_gestellt = time.monotonic()
-        if neu != self.regler.value():
-            self.regler.setValue(neu)
-            self.prozent.setText("{} %".format(neu))
-            self._lautsprecher_zeichnen()
-            self.volume_changed.emit(self.key, neu / 100.0, True)
-        e.accept()
+    # Kein wheelEvent: Das Rad ueber der Zeile soll die Liste scrollen. Nur
+    # genau ueber dem Regler verstellt es die Lautstaerke – das erledigt
+    # VolumeSlider selbst. Vorher schluckte die ganze Zeile das Rad, dadurch
+    # liess sich die Liste kaum noch bewegen, ohne etwas zu verstellen.
 
 
 class _Kaestchen(QWidget):

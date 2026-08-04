@@ -36,22 +36,38 @@ TEXTE = {
     "tasten_aktiv": ("Lautstärke-Tasten aktiv", "Volume keys active"),
 
     # ---- Knopf-Hinweise ----
-    "tt_profile": ("Profile", "Profiles"),
     "tt_modus": ("Hell / Dunkel", "Light / dark"),
     "tt_einstellungen": ("Einstellungen", "Settings"),
     "tt_zurueck": ("Zurück", "Back"),
 
     # ---- Profile ----
-    "profil_speichern_titel": ("Profil speichern", "Save profile"),
+    "profil_neu_titel": ("Neues Profil", "New profile"),
     "profil_name": ("Name des Profils:", "Profile name:"),
-    "profil_speichern": ("Aktuelle Pegel speichern …",
-                         "Save current levels …"),
+    "profil_umbenennen_titel": ("Profil umbenennen", "Rename profile"),
+    "profil_umbenennen": ("Umbenennen …", "Rename …"),
     "profil_loeschen": ("Profil löschen", "Delete profile"),
-    "profil_gespeichert": ("Profil „{name}“ gespeichert",
-                           "Profile “{name}” saved"),
-    "profil_geladen": ("Profil „{name}“ geladen", "Profile “{name}” loaded"),
+    "profil_neu": ("Neues Profil …", "New profile …"),
+    "profil_geladen": ("Profil „{name}“", "Profile “{name}”"),
     "profil_geloescht": ("Profil „{name}“ gelöscht",
                          "Profile “{name}” deleted"),
+    "profil_standard": ("Standard", "Default"),
+    "profil_vor": ("Nächstes Profil", "Next profile"),
+    "profil_zurueck": ("Vorheriges Profil", "Previous profile"),
+    "profil_hilfe": (
+        "Ein Profil merkt sich die Pegel aller Apps, welche davon am Rad "
+        "hängen, dazu Farbe, Hell/Dunkel und die Geschwindigkeiten.\n\n"
+        "Es gibt keinen Speichern-Knopf: Was du änderst, gehört ab sofort "
+        "zum offenen Profil. Willst du eine zweite Fassung, leg mit „+“ "
+        "eine an — sie startet als Kopie der aktuellen.\n\n"
+        "Sprache, Autostart und die Wahl zwischen Rad und Tasten gelten "
+        "für alle Profile.",
+        "A profile remembers every app's level, which of them are on the "
+        "wheel, plus colour, light/dark and the two speeds.\n\n"
+        "There is no save button: whatever you change belongs to the open "
+        "profile from now on. For a second version press “+” — it starts "
+        "as a copy of the current one.\n\n"
+        "Language, autostart and the choice between wheel and keys apply "
+        "to every profile."),
 
     # ---- Einstellungen: Abschnitte ----
     "design": ("DESIGN", "APPEARANCE"),

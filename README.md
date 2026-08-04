@@ -39,14 +39,30 @@ Infobereich** ab (unten rechts neben der Uhr, ggf. auf den Pfeil `^` klicken).
 - **Live-Pegel:** Der helle Streifen im Schieberegler zeigt, was die App
   gerade wirklich ausgibt – mit einer Markierung, die kurz an der lautesten
   Stelle stehen bleibt. Abschaltbar unter *Einstellungen → Anzeige*.
-- **Mausrad über einer Zeile** regelt genau diese App – ohne sie anzuhaken.
-  Zeiger drauf, drehen, fertig.
+- **Mausrad direkt über einem Schieberegler** regelt genau diese App – ohne
+  sie anzuhaken. Daneben scrollt es die Liste.
 - **Suchfeld:** Ab acht sichtbaren Apps erscheint über der Liste ein Suchfeld.
 - **Stummschalten:** Klick auf das **Lautsprecher-Symbol** in der Zeile. Ein
   Regler auf **0 %** schaltet von allein stumm, Hochdrehen hebt es wieder auf.
-- **Profile:** Das Disketten-Symbol oben speichert alle aktuellen Pegel unter
-  einem Namen („Gaming", „Musik", „Meeting") und stellt sie später mit einem
-  Klick wieder her.
+
+## Profile
+
+Unter der Kopfzeile steht der Name des offenen Profils, links und rechts davon
+die Pfeile zum Wechseln. Das **+** legt ein neues an – es startet als Kopie des
+aktuellen, du gibst nur einen Namen ein. Ein Klick auf den Namen öffnet die
+Liste zum Springen, Umbenennen und Löschen.
+
+**Einen Speichern-Knopf gibt es nicht.** Was du änderst, gehört ab sofort zum
+offenen Profil. Dazu zählen:
+
+- die Pegel aller Apps und der Gesamtlautstärke
+- welche davon am Rad bzw. an den Tasten hängen
+- Farbe und Hell/Dunkel
+- beide Geschwindigkeiten und „Leise feiner regeln"
+
+Sprache, Autostart, die Wahl zwischen Rad und Tasten, „Richtung umkehren",
+Live-Pegel und die Einblendung gelten dagegen **für alle Profile** – die hängen
+am Rechner, nicht an der Stimmung.
 - **„Gesamtlautstärke" und einzelne Apps schließen sich aus** – sonst würde
   doppelt gedämpft: erst die App, dann nochmal global. Was dabei mit den Pegeln
   passiert, stellst du unter *Beim Wechsel Gesamt ↔ App* ein.

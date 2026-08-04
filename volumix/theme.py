@@ -135,6 +135,19 @@ class Theme:
         #Hinweis {{ color: {t.muted}; font-size: 12px; }}
         #Trennlinie {{ background: {t.stroke}; border: none; }}
 
+        /* Profilleiste: Name in der Mitte, Pfeile aussen */
+        QPushButton#Profilname {{
+            background: transparent;
+            border: none;
+            border-radius: 9px;
+            padding: 6px 10px;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: {t.fg};
+        }}
+        QPushButton#Profilname:hover {{ background: {t.card2}; }}
+
         /* Mixer-Zeile – Hover und Auswahl bekommen je einen eigenen Verlauf */
         #Zeile {{ border-radius: 12px; background: transparent; }}
         #Zeile[hover="true"] {{

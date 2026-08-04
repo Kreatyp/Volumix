@@ -99,6 +99,17 @@ class MainWindow(QWidget):
         self._meta = {}
         self._items = []
         self._filter = ""
+        # Es gibt immer genau ein offenes Profil. Wer von frueher kommt, hat
+        # Profile im alten Format (nur Pegel) – die bekommen die fehlenden
+        # Teile aus den jetzigen Einstellungen.
+        for name, profil in list(self.profiles.items()):
+            for k in config.PROFIL_TEILE:
+                profil.setdefault(k, self.cfg[k])
+            profil.setdefault("targets", sorted(self.targets))
+        self._profil_sicherstellen()
+        for k in config.PROFIL_TEILE:
+            self.cfg[k] = self.profiles[self.cfg["profil"]].get(k, self.cfg[k])
+        self.theme.set(self.cfg["mode"], self.cfg["accent"])
 
         self.setObjectName("Fenster")
         self.setWindowTitle("Volumix")
@@ -151,6 +162,7 @@ class MainWindow(QWidget):
     # ---- Aufbau ----------------------------------------------------------
     def _aufbauen(self):
         self._hilfe_knoepfe = []      # beim Neuaufbau wieder von vorn
+        self._flachknoepfe = []
         aussen = QVBoxLayout(self)
         aussen.setContentsMargins(18, 16, 18, 14)
         aussen.setSpacing(10)
@@ -174,15 +186,14 @@ class MainWindow(QWidget):
         spalte.addWidget(titel)
         spalte.addWidget(unter)
         kopf.addLayout(spalte, 1)
-        self.btn_profile = rundknopf("save", self.theme, T("tt_profile"))
-        self.btn_profile.clicked.connect(self._profil_menue)
         self.btn_modus = rundknopf("moon", self.theme, T("tt_modus"))
         self.btn_modus.clicked.connect(self._modus_wechseln)
         self.btn_einst = rundknopf("gear", self.theme, T("tt_einstellungen"))
         self.btn_einst.clicked.connect(lambda: self._seite(1))
-        for b in (self.btn_profile, self.btn_modus, self.btn_einst):
+        for b in (self.btn_modus, self.btn_einst):
             kopf.addWidget(b)
         aussen.addWidget(self.kopfzeile)
+        aussen.addWidget(self._profilleiste_bauen())
 
         # Umschaltbarer Bereich: Mixer / Einstellungen
         self.mixer_seite = self._mixer_bauen()
@@ -513,11 +524,13 @@ class MainWindow(QWidget):
         if getattr(self, "wortmarke", None) is not None:
             self.wortmarke.setPixmap(icons.wortmarke(27, self.theme.fg, dpr))
         self.setWindowIcon(QIcon(icons.app_logo(64, self.theme.accent, dpr)))
-        for b in (self.btn_profile, self.btn_modus, self.btn_einst,
+        for b in (self.btn_modus, self.btn_einst,
                   getattr(self, "btn_zurueck", None)):
             if b is not None:
                 name = "sun" if (b is self.btn_modus and self.theme.hell) else b._symbol
                 b.setIcon(icons.pixmap(name, 19, self.theme.muted, dpr))
+        for b in getattr(self, "_flachknoepfe", []):
+            b.setIcon(icons.pixmap(b._symbol, 17, self.theme.muted, dpr))
         for b in getattr(self, "_hilfe_knoepfe", []):
             b.setIcon(icons.pixmap("help", 16, self.theme.muted, dpr))
         for punkt in getattr(self, "farbknoepfe", {}).values():
@@ -834,29 +847,68 @@ class MainWindow(QWidget):
             self.cfg["window_h"] = self.height()
 
     # ---- Profile ---------------------------------------------------------
-    def _profil_menue(self):
-        m = QMenu(self)
-        m.setStyleSheet(self.theme.qss())
-        if self.profiles:
-            for name in sorted(self.profiles):
-                a = m.addAction(name)
-                a.triggered.connect(functools.partial(self._profil_laden, name))
-            m.addSeparator()
-            entfernen = m.addMenu(T("profil_loeschen"))
-            for name in sorted(self.profiles):
-                a = entfernen.addAction(name)
-                a.triggered.connect(functools.partial(self._profil_loeschen, name))
-            m.addSeparator()
-        a = m.addAction(T("profil_speichern"))
-        a.triggered.connect(self._profil_speichern)
-        m.exec(self.btn_profile.mapToGlobal(self.btn_profile.rect().bottomLeft()))
+    def _profilleiste_bauen(self):
+        """Schmaler Streifen: zurueck, Name, vor, plus."""
+        leiste = QWidget()
+        durchsichtig(leiste, "Profilleiste")
+        leiste.setFixedHeight(34)
+        z = QHBoxLayout(leiste)
+        z.setContentsMargins(2, 0, 2, 0)
+        z.setSpacing(2)
 
-    def _profil_speichern(self):
-        name, ok = QInputDialog.getText(self, T("profil_speichern_titel"),
-                                        T("profil_name"))
-        if not ok or not name.strip():
-            return
-        name = name.strip()
+        self.btn_prof_zurueck = self._flachknopf("back", T("profil_zurueck"))
+        self.btn_prof_zurueck.clicked.connect(lambda: self._profil_blaettern(-1))
+        z.addWidget(self.btn_prof_zurueck)
+
+        self.profil_name = QPushButton()
+        self.profil_name.setObjectName("Profilname")
+        self.profil_name.setCursor(Qt.PointingHandCursor)
+        self.profil_name.clicked.connect(self._profil_menue)
+        z.addWidget(self.profil_name, 1)
+
+        self.btn_prof_vor = self._flachknopf("vor", T("profil_vor"))
+        self.btn_prof_vor.clicked.connect(lambda: self._profil_blaettern(1))
+        z.addWidget(self.btn_prof_vor)
+
+        self.btn_prof_neu = self._flachknopf("plus", T("profil_neu"))
+        self.btn_prof_neu.clicked.connect(self._profil_neu)
+        z.addWidget(self.btn_prof_neu)
+
+        self._profilleiste_auffrischen()
+        return leiste
+
+    def _flachknopf(self, symbol, tooltip):
+        b = QPushButton()
+        b.setObjectName("Flach")
+        b.setFixedSize(30, 30)
+        b.setCursor(Qt.PointingHandCursor)
+        b.setToolTip(tooltip)
+        b.setIcon(icons.pixmap(symbol, 17, self.theme.muted))
+        b.setIconSize(QSize(17, 17))
+        b._symbol = symbol
+        self._flachknoepfe.append(b)
+        return b
+
+    def _profilleiste_auffrischen(self):
+        namen = self._profil_namen()
+        self.profil_name.setText(self.cfg["profil"] or "—")
+        mehrere = len(namen) > 1
+        self.btn_prof_zurueck.setEnabled(mehrere)
+        self.btn_prof_vor.setEnabled(mehrere)
+        self.profil_name.setToolTip(T("profil_hilfe"))
+
+    def _profil_namen(self):
+        return sorted(self.profiles, key=lambda n: n.lower())
+
+    def _profil_sicherstellen(self):
+        """Es gibt immer genau ein offenes Profil – notfalls wird eins angelegt."""
+        if not self.profiles:
+            self.profiles[T("profil_standard")] = self._profil_abbild()
+        if self.cfg["profil"] not in self.profiles:
+            self.cfg["profil"] = self._profil_namen()[0]
+
+    def _profil_abbild(self):
+        """Der jetzige Zustand als Profil."""
         apps = {}
         master = None
         for it in self._items:
@@ -864,20 +916,122 @@ class MainWindow(QWidget):
                 master = it["volume"]
             else:
                 apps[it["key"]] = it["volume"]
-        self.profiles[name] = {"master": master, "apps": apps}
-        self._speichern()
-        self._melden(T("profil_gespeichert", name=name))
+        profil = {"master": master, "apps": apps,
+                  "targets": sorted(self.targets)}
+        for k in config.PROFIL_TEILE:
+            profil[k] = self.cfg[k]
+        return profil
 
-    def _profil_laden(self, name):
+    def _profil_sichern(self):
+        """Den jetzigen Zustand ins offene Profil schreiben.
+
+        Es gibt bewusst keinen Speichern-Knopf: Was man aendert, gehoert ab
+        sofort zum offenen Profil. Deshalb laeuft das bei jedem Sichern mit.
+        """
+        name = self.cfg.get("profil")
+        if not name or name not in self.profiles:
+            return
+        alt = self.profiles[name]
+        neu = self._profil_abbild()
+        # Pegel nur uebernehmen, wenn wir welche kennen – direkt nach dem
+        # Start ist die Liste noch leer und wuerde das Profil auswaschen.
+        if not neu["apps"] and neu["master"] is None:
+            neu["master"] = alt.get("master")
+            neu["apps"] = alt.get("apps") or {}
+        self.profiles[name] = neu
+
+    def _profil_blaettern(self, richtung):
+        namen = self._profil_namen()
+        if len(namen) < 2:
+            return
+        i = namen.index(self.cfg["profil"]) if self.cfg["profil"] in namen else 0
+        self._profil_oeffnen(namen[(i + richtung) % len(namen)])
+
+    def _profil_oeffnen(self, name):
         profil = self.profiles.get(name)
-        if profil:
-            self.engine.job("profile", profil)
-            self._melden(T("profil_geladen", name=name))
+        if profil is None:
+            return
+        self._profil_sichern()          # das bisherige festhalten
+        # Die Pegelliste gehoert noch zum alten Profil. Wuerde sie stehen
+        # bleiben, schriebe das naechste Sichern die alten Werte ins neue
+        # Profil – leer heisst „warte auf frische Meldung“.
+        self._items = []
+        self.cfg["profil"] = name
+        for k in config.PROFIL_TEILE:
+            if k in profil:
+                self.cfg[k] = profil[k]
+        ziele = profil.get("targets")
+        if ziele is not None:
+            self.targets = set(ziele)
+            self.engine.targets = set(self.targets)
+        self.theme.set(self.cfg["mode"], self.cfg["accent"])
+        icons.cache_leeren()
+        self._tempo_uebernehmen()
+        self.engine.job("profile", profil)
+        self._neu_aufbauen(self.view if hasattr(self, "view") else 0)
+        self._speichern()
+        self._melden(T("profil_geladen", name=name))
+
+    def _profil_neu(self):
+        name, ok = QInputDialog.getText(self, T("profil_neu_titel"),
+                                        T("profil_name"))
+        name = (name or "").strip()
+        if not ok or not name:
+            return
+        if name in self.profiles:
+            self._profil_oeffnen(name)
+            return
+        self._profil_sichern()
+        self.profiles[name] = self._profil_abbild()      # Kopie des jetzigen
+        self.cfg["profil"] = name
+        self._profilleiste_auffrischen()
+        self._speichern()
+        self._melden(T("profil_geladen", name=name))
+
+    def _profil_umbenennen(self):
+        alt = self.cfg["profil"]
+        name, ok = QInputDialog.getText(self, T("profil_umbenennen_titel"),
+                                        T("profil_name"), text=alt)
+        name = (name or "").strip()
+        if not ok or not name or name == alt:
+            return
+        self._profil_sichern()
+        self.profiles[name] = self.profiles.pop(alt)
+        self.cfg["profil"] = name
+        self._profilleiste_auffrischen()
+        self._speichern()
 
     def _profil_loeschen(self, name):
-        if self.profiles.pop(name, None) is not None:
+        if len(self.profiles) < 2:      # das letzte bleibt stehen
+            return
+        if self.profiles.pop(name, None) is None:
+            return
+        self._melden(T("profil_geloescht", name=name))
+        if self.cfg["profil"] == name:
+            self.cfg["profil"] = self._profil_namen()[0]
+            self._profil_oeffnen(self.cfg["profil"])
+        else:
+            self._profilleiste_auffrischen()
             self._speichern()
-            self._melden(T("profil_geloescht", name=name))
+
+    def _profil_menue(self):
+        m = QMenu(self)
+        m.setStyleSheet(self.theme.qss())
+        for name in self._profil_namen():
+            a = m.addAction(name)
+            a.setCheckable(True)
+            a.setChecked(name == self.cfg["profil"])
+            a.triggered.connect(functools.partial(self._profil_oeffnen, name))
+        m.addSeparator()
+        m.addAction(T("profil_neu")).triggered.connect(self._profil_neu)
+        m.addAction(T("profil_umbenennen")).triggered.connect(
+            self._profil_umbenennen)
+        a = m.addAction(T("profil_loeschen"))
+        a.setEnabled(len(self.profiles) > 1)
+        a.triggered.connect(
+            functools.partial(self._profil_loeschen, self.cfg["profil"]))
+        m.exec(self.profil_name.mapToGlobal(
+            self.profil_name.rect().bottomLeft()))
 
     # ---- Statusleiste ----------------------------------------------------
     def _status_setzen(self):
@@ -915,7 +1069,7 @@ class MainWindow(QWidget):
         self.engine.speed_curve = bool(self.cfg["speed_curve"])
 
     def _tempo_setzen(self, wert):
-        wert = int(round(wert / 10.0) * 10)
+        wert = int(wert)
         self.cfg["speed"] = wert
         self.tempo_wert.setText("{} %".format(wert))
         self._tempo_uebernehmen()
@@ -927,7 +1081,7 @@ class MainWindow(QWidget):
         self._speichern()
 
     def _tempo_apps_setzen(self, wert):
-        wert = int(round(wert / 10.0) * 10)
+        wert = int(wert)
         self.cfg["speed_apps"] = wert
         self.tempo_apps_wert.setText("{} %".format(wert))
         self._tempo_uebernehmen()
@@ -1044,6 +1198,8 @@ class MainWindow(QWidget):
 
     # ---- Ablage / Tray ---------------------------------------------------
     def _speichern(self):
+        # Kein Speichern-Knopf: Der jetzige Zustand ist das offene Profil.
+        self._profil_sichern()
         self.cfg.update({
             "targets": sorted(self.targets),
             "hidden": sorted(self.hidden),

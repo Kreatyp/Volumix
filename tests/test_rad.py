@@ -87,11 +87,27 @@ if zeilen:
         pruefe("gemeldeter Wert passt zum Regler",
                round(gemeldet[-1][0] * 100) == z.regler.value())
 
+    print("\n=== Rad neben dem Regler laesst die Lautstaerke in Ruhe ===")
+    # Frueher schluckte die ganze Zeile das Rad. Dadurch liess sich die Liste
+    # kaum scrollen, ohne unterwegs Lautstaerken zu verstellen.
+    z.regler.setValue(50)
+    z._selbst_gestellt = 0.0
+    app.processEvents()
+    e_zeile = QWheelEvent(QPoint(10, 10), z.mapToGlobal(QPoint(10, 10)),
+                          QPoint(0, 0), QPoint(0, 360),
+                          Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
+    app.sendEvent(z, e_zeile)
+    app.processEvents()
+    pruefe("Wert unveraendert", z.regler.value() == 50,
+           "ist {}".format(z.regler.value()))
+    pruefe("Ereignis wird weitergereicht (Liste kann scrollen)",
+           not e_zeile.isAccepted())
+
     print("\n=== Wert bleibt nach dem Scrollen stehen ===")
     z.regler.setValue(50)
     z._selbst_gestellt = 0.0
     app.processEvents()
-    raddrehen(3)
+    raddrehen(3, ziel=z.regler)
     gewuenscht = z.regler.value()
     pruefe("Rad hat den Wert geaendert", gewuenscht != 50,
            "ist {}".format(gewuenscht))

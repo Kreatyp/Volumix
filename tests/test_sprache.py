@@ -78,7 +78,7 @@ pruefe("Ansicht bleibt in den Einstellungen", f.einst_seite.isVisible())
 f._seite(0)
 app.processEvents()
 
-print("\n=== Mausrad ueber einer Zeile ===")
+print("\n=== Mausrad ueber dem Regler ===")
 # Auf die erste Rueckmeldung des Audio-Threads warten
 import time
 for _ in range(120):
@@ -94,20 +94,26 @@ if zeilen:
     z.regler.setValue(50)
     app.processEvents()
     gemeldet = []
-    z.volume_changed.connect(lambda k, w, e: gemeldet.append(w))
+    z.volume_changed.connect(
+        lambda k, w, endgueltig: gemeldet.append((w, endgueltig)))
 
     def raddrehen(stufen):
-        e = QWheelEvent(QPoint(10, 10), z.mapToGlobal(QPoint(10, 10)),
+        # Auf den Regler, nicht auf die Zeile: nur dort regelt das Rad.
+        e = QWheelEvent(QPoint(10, 10), z.regler.mapToGlobal(QPoint(10, 10)),
                         QPoint(0, 0), QPoint(0, 120 * stufen),
                         Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
-        z.wheelEvent(e)
+        app.sendEvent(z.regler, e)
         app.processEvents()
         return e
 
     e1 = raddrehen(1)
     pruefe("hoch dreht lauter", z.regler.value() > 50,
            "ist {}".format(z.regler.value()))
-    pruefe("Aenderung wird gemeldet", len(gemeldet) == 1)
+    # Der Regler meldet zweimal: waehrend des Drehens und beim Loslassen.
+    # Wichtig ist, dass die letzte Meldung endgueltig ist – erst die setzt
+    # die Lautstaerke wirklich.
+    pruefe("Aenderung wird gemeldet", bool(gemeldet) and gemeldet[-1][1] is True,
+           "{} Meldungen".format(len(gemeldet)))
     pruefe("Ereignis wird angenommen (Liste scrollt nicht)", e1.isAccepted())
     vorher = z.regler.value()
     raddrehen(-2)
