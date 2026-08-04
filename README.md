@@ -1,12 +1,15 @@
 # Volumix
 
 Ein **Lautstärke-Mixer** für Windows: die Windows-Gesamtlautstärke und jede
-laufende Audio-App bekommen einen eigenen Schieberegler. Zusätzlich kannst du
-pro Eintrag ein **Häkchen** setzen – diese steuerst du dann mit dem
-**seitlichen Daumenrad** (Thumbwheel) deiner Logitech MX Master 4 oder
-wahlweise mit den **Lautstärke-Tasten**.
+laufende Audio-App bekommen einen eigenen Schieberegler.
 
-Das normale, senkrechte Scrollrad bleibt **völlig unberührt**.
+Der eigentliche Zweck: Du setzt pro Eintrag ein **Häkchen** – und deine
+**Lautstärke-Tasten** regeln danach nur noch diese Apps. Während du spielst,
+bleibt das Spiel laut, während du Discord leiser drehst.
+
+Statt der Tasten geht auch das **seitliche Daumenrad** einer Logitech MX Master,
+falls du so eine Maus hast. Das normale, senkrechte Scrollrad bleibt in beiden
+Fällen **völlig unberührt**.
 
 ---
 
