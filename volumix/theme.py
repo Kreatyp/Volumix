@@ -106,7 +106,7 @@ class Theme:
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                         stop:0 {t.card_top}, stop:1 {t.card_bottom});
         }}
-        #Leiste {{
+        #Leiste, #Profilleiste {{
             border-radius: 12px;
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                         stop:0 {t.card_top}, stop:1 {t.card_bottom});
@@ -142,9 +142,9 @@ class Theme:
             border: 1px solid transparent;
             border-radius: 9px;
             padding: 5px 10px;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 600;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.4px;
             color: {t.fg};
             selection-background-color: {t.accent};
         }}

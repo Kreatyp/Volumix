@@ -152,8 +152,30 @@ f._profil_loeschen(erstes)
 pruefe("das letzte laesst sich nicht loeschen", len(f.profiles) == 1)
 f.profil_name.setFocus()
 warten()
-pruefe("bei nur einem Profil bleibt der Papierkorb aus",
-       not f.btn_prof_weg.isVisible())
+pruefe("Papierkorb auch beim letzten Profil sichtbar",
+       f.btn_prof_weg.isVisible())
+pruefe("dort aber ausgegraut", not f.btn_prof_weg.isEnabled())
+f.profil_name.clearFocus()
+
+print("\n=== Fensterhoehe ueberlebt den Profilwechsel ===")
+# Frueher fiel das Fenster beim Wechsel auf seine Mindesthoehe zusammen.
+# Hoeher als der Inhalt darf es nie werden – dagegen wird gemessen.
+f.btn_prof_neu.click()
+f.profil_name.clearFocus()
+warten(20)
+f.resize(f.width(), 640)
+warten(20)
+vorher = f.height()
+f._profil_blaettern(1)
+warten(40)
+erlaubt = min(vorher, f.maximumHeight())
+pruefe("Hoehe bleibt, soweit der Inhalt sie zulaesst",
+       abs(f.height() - erlaubt) <= 4,
+       "vorher {}, jetzt {}, hoechstens {}".format(
+           vorher, f.height(), f.maximumHeight()))
+pruefe("und faellt nicht auf die Mindesthoehe",
+       f.height() > 360 or f.maximumHeight() <= 364,
+       "{} bei Deckel {}".format(f.height(), f.maximumHeight()))
 
 print("\n{}".format("Alles gruen." if not fehler
                     else "{} Test(s) fehlgeschlagen!".format(fehler)))

@@ -147,7 +147,9 @@ class MainWindow(QWidget):
         self.setObjectName("Fenster")
         self.setWindowTitle("Volumix")
         self.setWindowIcon(QIcon(icons.app_logo(64, self.theme.accent)))
-        self.resize(560, self.cfg.get("window_h", 720))
+        self._wunsch_hoehe = self.cfg.get("window_h", 720)
+        self._erwartet = None
+        self.resize(560, self._wunsch_hoehe)
         self.setMinimumWidth(560)
         self.setMaximumWidth(560)
         self.setMinimumHeight(360)
@@ -744,10 +746,18 @@ class MainWindow(QWidget):
     def _hoehe_anpassen(self):
         """Fenster nicht hoeher machen, als die Liste braucht.
 
-        Der Nutzer darf kleiner ziehen; groesser als noetig ist nur leerer
-        Raum. Beim ersten Aufbau wird die passende Hoehe gesetzt.
+        Das Fenster kehrt immer zur gewuenschten Hoehe zurueck, sobald der
+        Inhalt sie zulaesst. Frueher wurde nur verkleinert – nach einem
+        Neuaufbau lief diese Pruefung, bevor die Zeilen da waren, deckelte
+        auf die Mindesthoehe und das Fenster blieb dort stehen.
         """
         if not self.mixer_seite.isVisible():
+            return
+        if not self.rows:
+            # Nach einem Neuaufbau laeuft das hier, bevor die Zeilen da sind.
+            # Jetzt zu messen hiesse: „kaum Inhalt“ – und das Fenster faellt
+            # auf die Mindesthoehe. Wenn die Zeilen kommen, ruft es sich
+            # ohnehin selbst wieder auf.
             return
         inhalt = self.inhalt.sizeHint().height()
         rest = self.height() - self.rollbereich.viewport().height()
@@ -755,12 +765,21 @@ class MainWindow(QWidget):
         hoechstens = max(360, min(self.screen().availableGeometry().height() - 80,
                                   gewuenscht))
         self.setMaximumHeight(hoechstens)
-        if not getattr(self, "_hoehe_gesetzt", False):
-            self._hoehe_gesetzt = True
-            self.resize(self.width(), min(hoechstens,
-                                          self.cfg.get("window_h", 720)))
-        elif self.height() > hoechstens:
-            self.resize(self.width(), hoechstens)
+        ziel = min(hoechstens, self._wunsch_hoehe)
+        if abs(self.height() - ziel) > 2:
+            self._selbst_hoehe(ziel)
+
+    def _selbst_hoehe(self, hoehe):
+        """Hoehe von sich aus setzen – klar getrennt vom Ziehen mit der Maus.
+
+        Ohne die Markierung merkt sich das Fenster jede eigene Anpassung als
+        Wunsch des Nutzers und kehrt nie zur alten Groesse zurueck.
+        """
+        self._erwartet = hoehe
+        self.resize(self.width(), hoehe)
+        # Falls die Meldung ausbleibt, nicht ewig warten
+        QTimer.singleShot(300, functools.partial(setattr, self,
+                                                 "_erwartet", None))
 
     def _volume_uebernehmen(self, key, prozent):
         row = self.rows.get(key)
@@ -871,22 +890,39 @@ class MainWindow(QWidget):
                          leiste.value() < leiste.maximum() - 4)
         self.fade.raise_()
 
+    def mousePressEvent(self, e):
+        """Klick irgendwo daneben beendet das Umbenennen.
+
+        Die meisten Flaechen nehmen keine Eingabe an, deshalb behielte das
+        Namensfeld sie sonst und man muesste eigens Enter druecken.
+        """
+        feld = getattr(self, "profil_name", None)
+        if feld is not None and feld.hasFocus():
+            feld.clearFocus()
+        super().mousePressEvent(e)
+
     def resizeEvent(self, e):
         super().resizeEvent(e)
         if self.einst_seite.isVisible():
             QTimer.singleShot(0, self._einst_fade)
         else:
             QTimer.singleShot(0, self._fade)
-            self.cfg["window_h"] = self.height()
+            # Nur was von Hand gezogen wird, zaehlt als Wunschhoehe.
+            erwartet = getattr(self, "_erwartet", None)
+            if erwartet is not None and abs(self.height() - erwartet) <= 2:
+                self._erwartet = None
+            else:
+                self._wunsch_hoehe = self.height()
+                self.cfg["window_h"] = self.height()
 
     # ---- Profile ---------------------------------------------------------
     def _profilleiste_bauen(self):
         """Schmaler Streifen: zurueck, Name, vor, plus."""
-        leiste = QWidget()
-        durchsichtig(leiste, "Profilleiste")
-        leiste.setFixedHeight(34)
+        leiste = QFrame()
+        leiste.setObjectName("Profilleiste")
+        leiste.setFixedHeight(40)
         z = QHBoxLayout(leiste)
-        z.setContentsMargins(2, 0, 2, 0)
+        z.setContentsMargins(6, 0, 6, 0)
         z.setSpacing(2)
 
         self.btn_prof_zurueck = self._flachknopf("back", T("profil_zurueck"))
@@ -939,8 +975,13 @@ class MainWindow(QWidget):
         self.btn_prof_weg.setEnabled(mehrere)
 
     def _profil_bearbeiten(self):
-        """Feld hat die Eingabe – Papierkorb dazu, Pfeile weg."""
-        self.btn_prof_weg.setVisible(len(self.profiles) > 1)
+        """Feld hat die Eingabe – Papierkorb dazu, Pfeile weg.
+
+        Der Papierkorb erscheint immer, auch beim letzten Profil – dort nur
+        ausgegraut. Ganz zu verschwinden wirkte wie ein Fehler.
+        """
+        self.btn_prof_weg.setEnabled(len(self.profiles) > 1)
+        self.btn_prof_weg.show()
         self.btn_prof_zurueck.hide()
         self.btn_prof_vor.hide()
 
@@ -1167,10 +1208,18 @@ class MainWindow(QWidget):
     def _neu_aufbauen(self, seite=0):
         """Fenster verwerfen und frisch aufbauen (Sprach- oder Profilwechsel)."""
         self._baut_um = True
+        # Ohne Inhalt faellt das Fenster auf seine Mindesthoehe zusammen und
+        # bleibt dort – die vorherige Hoehe muss von Hand zurueck.
+        hoehe = self.height()
         try:
             self._neu_aufbauen_intern(seite)
         finally:
             self._baut_um = False
+        # Sofort, nicht spaeter: Die Hoehenlogik rechnet mit der aktuellen
+        # Fenstergroesse. Liefe sie zuerst, saehe sie das zusammengefallene
+        # Fenster und setzte den Deckel entsprechend tief.
+        self.setMaximumHeight(16777215)
+        self.resize(self.width(), hoehe)
 
     def _neu_aufbauen_intern(self, seite):
         alt = self.layout()
