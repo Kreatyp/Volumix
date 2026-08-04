@@ -57,7 +57,8 @@ TEXTE = {
         "zum offenen Profil. Mit „+“ legst du sofort ein neues an — es "
         "startet als Kopie des aktuellen.\n\n"
         "Zum Umbenennen einfach hier hineinklicken und tippen. Solange das "
-        "Feld offen ist, steht daneben der Papierkorb.\n\n"
+        "Feld offen ist, steht daneben der Papierkorb. Blättern geht auch "
+        "mit den Pfeiltasten.\n\n"
         "Sprache, Autostart und die Wahl zwischen Rad und Tasten gelten "
         "für alle Profile.",
         "A profile remembers every app's level, which of them are on the "

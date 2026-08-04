@@ -131,6 +131,60 @@ pruefe("Geschwindigkeit wieder da", f.cfg["speed"] == 95, str(f.cfg["speed"]))
 pruefe("Leiste zeigt den Namen", f.profil_name.text() == "Zocken",
        f.profil_name.text())
 
+print("\n=== Pfeiltasten ===")
+from PySide6.QtCore import Qt                                  # noqa: E402
+from PySide6.QtGui import QKeyEvent                            # noqa: E402
+
+
+def taste(key):
+    e = QKeyEvent(QKeyEvent.KeyPress, key, Qt.NoModifier)
+    app.sendEvent(f, e)
+    app.processEvents()
+    return e
+
+
+vorher = f.cfg["profil"]
+e = taste(Qt.Key_Left)
+warten(30)
+pruefe("Pfeil links blaettert", f.cfg["profil"] != vorher, f.cfg["profil"])
+pruefe("Ereignis wird angenommen", e.isAccepted())
+taste(Qt.Key_Right)
+warten(30)
+pruefe("Pfeil rechts wieder zurueck", f.cfg["profil"] == vorher,
+       f.cfg["profil"])
+
+# Im Namensfeld gehoeren die Pfeile dem Schreibzeiger
+f.profil_name.setFocus()
+warten()
+stand = f.cfg["profil"]
+f.profil_name.keyPressEvent(QKeyEvent(QKeyEvent.KeyPress, Qt.Key_Left,
+                                      Qt.NoModifier))
+app.processEvents()
+pruefe("beim Umbenennen wird nicht geblaettert", f.cfg["profil"] == stand)
+f.profil_name.clearFocus()
+warten()
+
+print("\n=== Anzeige der Stelle ===")
+namen = sorted(f.profiles, key=lambda n: n.lower())
+pruefe("Punkte kennen die Anzahl",
+       f.profil_punkte.anzahl == len(f.profiles),
+       "{} von {}".format(f.profil_punkte.anzahl, len(f.profiles)))
+pruefe("und die richtige Stelle",
+       f.profil_punkte.aktiv == namen.index(f.cfg["profil"]),
+       "{} statt {}".format(f.profil_punkte.aktiv,
+                            namen.index(f.cfg["profil"])))
+f._profil_blaettern(1)
+warten(30)
+namen = sorted(f.profiles, key=lambda n: n.lower())
+pruefe("wandert beim Blaettern mit",
+       f.profil_punkte.aktiv == namen.index(f.cfg["profil"]),
+       str(f.profil_punkte.aktiv))
+
+# Fuer die naechsten Abschnitte wieder auf „Zocken“ stellen
+if f.cfg["profil"] != "Zocken":
+    f._profil_oeffnen("Zocken")
+    warten(30)
+
 print("\n=== Auf der Platte ===")
 gespeichert = config.load()
 pruefe("beide Profile gesichert", len(gespeichert["profiles"]) == 2)

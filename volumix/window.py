@@ -78,6 +78,55 @@ class _Profilname(QLineEdit):
         super().keyPressEvent(e)
 
 
+class _ProfilPunkte(QWidget):
+    """Zeigt, das wievielte von wie vielen Profilen offen ist.
+
+    Der aktive Punkt ist ein kurzer Strich – so sieht man die Stelle auch
+    aus dem Augenwinkel, ohne die Punkte zu zaehlen.
+    """
+
+    HOECHSTENS = 10        # darueber wird gezaehlt statt gezeichnet
+
+    def __init__(self, theme, parent=None):
+        super().__init__(parent)
+        self.theme = theme
+        self.anzahl = 0
+        self.aktiv = 0
+        self.setFixedHeight(9)
+
+    def setzen(self, anzahl, aktiv):
+        self.anzahl, self.aktiv = anzahl, aktiv
+        self.update()
+
+    def paintEvent(self, e):
+        from PySide6.QtGui import QColor, QPainter
+        from PySide6.QtCore import QRectF
+        if self.anzahl < 2:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setPen(Qt.NoPen)
+        if self.anzahl > self.HOECHSTENS:
+            p.setPen(QColor(self.theme.muted))
+            f = p.font()
+            f.setPixelSize(9)
+            p.setFont(f)
+            p.drawText(self.rect(), Qt.AlignCenter,
+                       "{} / {}".format(self.aktiv + 1, self.anzahl))
+            return
+        punkt, strich, luft, h = 4.0, 11.0, 4.0, 4.0
+        breite = sum(strich if i == self.aktiv else punkt
+                     for i in range(self.anzahl)) + luft * (self.anzahl - 1)
+        x = (self.width() - breite) / 2.0
+        y = (self.height() - h) / 2.0
+        for i in range(self.anzahl):
+            w = strich if i == self.aktiv else punkt
+            p.setBrush(QColor(self.theme.accent) if i == self.aktiv
+                       else QColor(self.theme.muted))
+            p.drawRoundedRect(QRectF(x, y, w, h), h / 2.0, h / 2.0)
+            x += w + luft
+
+
 class _KlickZeile(QWidget):
     """Zeile, die als Ganzes anklickbar ist."""
 
@@ -890,6 +939,19 @@ class MainWindow(QWidget):
                          leiste.value() < leiste.maximum() - 4)
         self.fade.raise_()
 
+    def keyPressEvent(self, e):
+        """Pfeil links und rechts blaettern durch die Profile.
+
+        Das Ereignis landet hier nur, wenn es niemand vorher gebraucht hat:
+        Im Namensfeld bewegen die Pfeile den Schreibzeiger, auf einem Regler
+        aendern sie den Wert. Beides bleibt, wie es war.
+        """
+        if e.key() in (Qt.Key_Left, Qt.Key_Right) and self.mixer_seite.isVisible():
+            self._profil_blaettern(-1 if e.key() == Qt.Key_Left else 1)
+            e.accept()
+            return
+        super().keyPressEvent(e)
+
     def mousePressEvent(self, e):
         """Klick irgendwo daneben beendet das Umbenennen.
 
@@ -907,11 +969,17 @@ class MainWindow(QWidget):
             QTimer.singleShot(0, self._einst_fade)
         else:
             QTimer.singleShot(0, self._fade)
-            # Nur was von Hand gezogen wird, zaehlt als Wunschhoehe.
+            # Nur was von Hand gezogen wird, zaehlt als Wunschhoehe. Waehrend
+            # eines Neuaufbaus faellt das Fenster kurz in sich zusammen –
+            # das ist keine Absicht des Nutzers.
+            if getattr(self, "_baut_um", False):
+                return
             erwartet = getattr(self, "_erwartet", None)
             if erwartet is not None and abs(self.height() - erwartet) <= 2:
                 self._erwartet = None
-            else:
+            elif self.height() < self.maximumHeight() - 2:
+                # Eine eigene Begrenzung landet immer genau auf dem Deckel.
+                # Darunter kann es nur jemand gezogen haben.
                 self._wunsch_hoehe = self.height()
                 self.cfg["window_h"] = self.height()
 
@@ -920,9 +988,9 @@ class MainWindow(QWidget):
         """Schmaler Streifen: zurueck, Name, vor, plus."""
         leiste = QFrame()
         leiste.setObjectName("Profilleiste")
-        leiste.setFixedHeight(40)
+        leiste.setFixedHeight(52)
         z = QHBoxLayout(leiste)
-        z.setContentsMargins(6, 0, 6, 0)
+        z.setContentsMargins(6, 4, 6, 4)
         z.setSpacing(2)
 
         self.btn_prof_zurueck = self._flachknopf("back", T("profil_zurueck"))
@@ -934,7 +1002,13 @@ class MainWindow(QWidget):
         self.profil_name.fokus_rein.connect(self._profil_bearbeiten)
         self.profil_name.fokus_raus.connect(self._profil_name_uebernehmen)
         self.profil_name.editingFinished.connect(self.profil_name.clearFocus)
-        z.addWidget(self.profil_name, 1)
+        self.profil_punkte = _ProfilPunkte(self.theme)
+        mitte = QVBoxLayout()
+        mitte.setContentsMargins(0, 0, 0, 0)
+        mitte.setSpacing(0)
+        mitte.addWidget(self.profil_name)
+        mitte.addWidget(self.profil_punkte)
+        z.addLayout(mitte, 1)
 
         # Kein Fokus: Sonst verliert das Namensfeld ihn beim Anklicken und der
         # Papierkorb waere weg, bevor der Klick ankommt.
@@ -968,11 +1042,14 @@ class MainWindow(QWidget):
         return b
 
     def _profilleiste_auffrischen(self):
-        mehrere = len(self.profiles) > 1
+        namen = self._profil_namen()
+        mehrere = len(namen) > 1
         self.profil_name.setText(self.cfg["profil"] or "")
         self.btn_prof_zurueck.setEnabled(mehrere)
         self.btn_prof_vor.setEnabled(mehrere)
         self.btn_prof_weg.setEnabled(mehrere)
+        stelle = namen.index(self.cfg["profil"]) if self.cfg["profil"] in namen else 0
+        self.profil_punkte.setzen(len(namen), stelle)
 
     def _profil_bearbeiten(self):
         """Feld hat die Eingabe – Papierkorb dazu, Pfeile weg.
@@ -1219,7 +1296,13 @@ class MainWindow(QWidget):
         # Fenstergroesse. Liefe sie zuerst, saehe sie das zusammengefallene
         # Fenster und setzte den Deckel entsprechend tief.
         self.setMaximumHeight(16777215)
-        self.resize(self.width(), hoehe)
+        self._selbst_hoehe(hoehe)
+        # Beim Abbau faellt das Fenster zusammen; diese Meldung kann verspaetet
+        # eintreffen und wuerde als Wunsch durchgehen. Deshalb den Wert danach
+        # noch einmal festnageln – jetzt und im naechsten Durchlauf.
+        self._wunsch_hoehe = hoehe
+        QTimer.singleShot(0, functools.partial(setattr, self,
+                                               "_wunsch_hoehe", hoehe))
 
     def _neu_aufbauen_intern(self, seite):
         alt = self.layout()
