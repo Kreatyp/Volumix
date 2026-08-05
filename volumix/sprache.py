@@ -51,23 +51,25 @@ TEXTE = {
     "profil_vor": ("Nächstes Profil", "Next profile"),
     "profil_zurueck": ("Vorheriges Profil", "Previous profile"),
     "profil_hilfe": (
-        "Ein Profil merkt sich die Pegel aller Apps, welche davon am Rad "
-        "hängen, dazu Farbe, Hell/Dunkel und die Geschwindigkeiten.\n\n"
+        "Ein Profil merkt sich die Pegel aller Apps und welche davon am Rad "
+        "bzw. an den Tasten hängen.\n\n"
         "Es gibt keinen Speichern-Knopf: Was du änderst, gehört ab sofort "
         "zum offenen Profil. Mit „+“ legst du sofort ein neues an — es "
         "startet als Kopie des aktuellen.\n\n"
         "Zum Umbenennen einfach hier hineinklicken und tippen. Solange das "
         "Feld offen ist, steht daneben der Papierkorb. Blättern geht auch "
         "mit den Pfeiltasten.\n\n"
-        "Sprache, Autostart und die Wahl zwischen Rad und Tasten gelten "
-        "für alle Profile.",
-        "A profile remembers every app's level, which of them are on the "
-        "wheel, plus colour, light/dark and the two speeds.\n\n"
+        "Alles aus den Einstellungen — Farbe, Geschwindigkeit, Sprache — "
+        "gilt für alle Profile gemeinsam.",
+        "A profile remembers every app's level and which of them are on the "
+        "wheel or the volume keys.\n\n"
         "There is no save button: whatever you change belongs to the open "
         "profile from now on. For a second version press “+” — it starts "
         "as a copy of the current one.\n\n"
-        "Language, autostart and the choice between wheel and keys apply "
-        "to every profile."),
+        "To rename, click here and type. While the field is open the bin "
+        "sits next to it. The arrow keys page through as well.\n\n"
+        "Everything from the settings — colour, speed, language — applies "
+        "to all profiles alike."),
 
     # ---- Einstellungen: Abschnitte ----
     "design": ("DESIGN", "APPEARANCE"),

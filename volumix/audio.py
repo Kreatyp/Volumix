@@ -386,6 +386,12 @@ class AudioEngine:
     def _spielende(self, ausser=(), schwelle=0.01, messungen=4, pause=0.02):
         """Regler aller Sitzungen, die gerade hoerbar Ton ausgeben.
 
+        Ein Programm kann mehrere Sitzungen haben – Spotify und Discord tun
+        das regelmaessig, meist gibt nur eine davon Ton aus. Deshalb werden
+        alle gesammelt und der lauteste Ausschlag gilt fuer das Programm.
+        Wird eine davon uebersehen, bleibt sie beim Wechsel auf voller
+        Lautstaerke stehen – und genau das knallt.
+
         Mehrfach gemessen, weil ein einzelner Wert in die Pause zwischen zwei
         Toenen fallen kann.
         """
@@ -399,18 +405,26 @@ class AudioEngine:
                 m = s._ctl.QueryInterface(IAudioMeterInformation)
             except Exception:
                 continue
-            if sav is not None and m is not None:
-                regler[key], messer[key] = sav, m
-        spitze = dict.fromkeys(messer, 0.0)
+            if sav is not None:
+                regler.setdefault(key, []).append(sav)
+            if m is not None:
+                messer.setdefault(key, []).append(m)
+        spitze = dict.fromkeys(regler, 0.0)
         for i in range(max(1, messungen)):
             if i:
                 time.sleep(pause)
-            for key, m in messer.items():
-                try:
-                    spitze[key] = max(spitze[key], float(m.GetPeakValue()))
-                except Exception:
-                    pass
+            for key, liste in messer.items():
+                for m in liste:
+                    try:
+                        spitze[key] = max(spitze[key], float(m.GetPeakValue()))
+                    except Exception:
+                        pass
         return {k: v for k, v in regler.items() if spitze.get(k, 0.0) >= schwelle}
+
+    @staticmethod
+    def _flach(nach_key):
+        """{key: [regler, ...]} zu einer einfachen Liste."""
+        return [v for liste in nach_key.values() for v in liste]
 
     @staticmethod
     def _skalieren(regler, faktor):
@@ -471,7 +485,7 @@ class AudioEngine:
         if richtung == "apps":
             leiser = all([self.set_app_amplitude(key, amp * gain)
                           for key, amp in pegel.items()])
-            leiser = self._skalieren(mit.values(), gain) and leiser
+            leiser = self._skalieren(self._flach(mit), gain) and leiser
             if not leiser:
                 # Lieber gar nichts aendern als die Gesamtlautstaerke
                 # aufreissen, waehrend die Apps noch laut stehen.
@@ -483,7 +497,7 @@ class AudioEngine:
             self._setzen_lassen()
             for key in pegel:
                 self.set_app_amplitude(key, 1.0)
-            self._skalieren(mit.values(), None)
+            self._skalieren(self._flach(mit), None)
         self._ziel.clear()
         self._jetzt.clear()
         self._schritt.clear()

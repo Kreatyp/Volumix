@@ -119,33 +119,30 @@ pruefe("belegter Name wird abgelehnt", f.cfg["profil"] == "Zocken",
 pruefe("Pfeile jetzt an",
        f.btn_prof_zurueck.isEnabled() and f.btn_prof_vor.isEnabled())
 
-print("\n=== Einstellungen gehoeren zum Profil ===")
+print("\n=== Einstellungen gelten fuer alle Profile ===")
 f._farbe_setzen("lime")
 f._tempo_setzen(95)
 warten()
-pruefe("Farbe im offenen Profil gelandet",
-       f.profiles["Zocken"]["accent"] == "lime",
-       str(f.profiles["Zocken"].get("accent")))
-pruefe("Geschwindigkeit ebenfalls", f.profiles["Zocken"]["speed"] == 95,
-       str(f.profiles["Zocken"].get("speed")))
-pruefe("das andere Profil blieb unberuehrt",
-       f.profiles[erstes]["accent"] != "lime",
-       str(f.profiles[erstes].get("accent")))
+pruefe("Farbe steht nicht im Profil",
+       "accent" not in f.profiles["Zocken"],
+       str(sorted(f.profiles["Zocken"])))
+pruefe("Geschwindigkeit ebenso wenig",
+       "speed" not in f.profiles["Zocken"])
+pruefe("das Profil haelt nur Pegel und Auswahl",
+       set(f.profiles["Zocken"]) <= {"master", "apps", "targets", "fassung"},
+       str(sorted(f.profiles["Zocken"])))
 
 print("\n=== Blaettern ===")
 f._profil_blaettern(1)
 warten(30)
 pruefe("anderes Profil offen", f.cfg["profil"] == erstes, f.cfg["profil"])
-pruefe("Farbe mitgewandert", f.theme.accent_key != "lime",
+pruefe("Farbe bleibt, wo sie ist", f.theme.accent_key == "lime",
        f.theme.accent_key)
-pruefe("Geschwindigkeit mitgewandert", f.cfg["speed"] != 95,
-       str(f.cfg["speed"]))
+pruefe("Geschwindigkeit ebenfalls", f.cfg["speed"] == 95, str(f.cfg["speed"]))
 
 f._profil_blaettern(1)
 warten(30)
 pruefe("und wieder zurueck", f.cfg["profil"] == "Zocken", f.cfg["profil"])
-pruefe("Farbe wieder da", f.theme.accent_key == "lime", f.theme.accent_key)
-pruefe("Geschwindigkeit wieder da", f.cfg["speed"] == 95, str(f.cfg["speed"]))
 pruefe("Leiste zeigt den Namen", f.profil_name.text() == "Zocken",
        f.profil_name.text())
 
@@ -208,8 +205,9 @@ gespeichert = config.load()
 pruefe("beide Profile gesichert", len(gespeichert["profiles"]) == 2)
 pruefe("offenes Profil vermerkt", gespeichert["profil"] == "Zocken",
        repr(gespeichert.get("profil")))
-pruefe("Farbe steht im Profil",
-       gespeichert["profiles"]["Zocken"]["accent"] == "lime")
+pruefe("Farbe steht global, nicht im Profil",
+       gespeichert["accent"] == "lime"
+       and "accent" not in gespeichert["profiles"]["Zocken"])
 
 print("\n=== Loeschen ueber den Papierkorb ===")
 feld_oeffnen()

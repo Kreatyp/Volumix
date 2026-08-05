@@ -63,8 +63,10 @@ def bauen(modus, master_db, apps, spielt=()):
     e.set_volume = lambda k, v: set_app(k, v)
     e.prozent = lambda k, by=None: st["a"][k] * 100.0
     e._by_key = lambda max_alter=2.0: {k: [FakeSav(st, k)] for k in st["a"]}
+    # Listen je Programm: Spotify und Discord haben regelmaessig mehrere
+    # Sitzungen, deshalb sammelt _spielende sie alle.
     e._spielende = lambda ausser=(), **kw: {
-        k: FakeSav(st, k) for k in spielt if k not in ausser}
+        k: [FakeSav(st, k)] for k in spielt if k not in ausser}
     e._setzen_lassen = lambda s=0.08: None
     e._ziel, e._jetzt, e._schritt = {}, {}, {}
     snap()

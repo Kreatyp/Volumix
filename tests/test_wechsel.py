@@ -48,19 +48,78 @@ class Regler:
 
 
 def motor_bauen(regler, spielend=(), gain=0.25, kaputt=()):
+    """`regler` ist {key: amplitude} oder {key: [amplitude, amplitude]}."""
     m = AudioEngine()
     m.switch_mode = "carry"
-    objekte = {k: [Regler(v, k in kaputt)] for k, v in regler.items()}
+    objekte = {}
+    for k, v in regler.items():
+        werte = v if isinstance(v, (list, tuple)) else [v]
+        objekte[k] = [Regler(w, k in kaputt) for w in werte]
     m._by_key = lambda max_alter=2.0: objekte
     m._cache_weg = lambda: None
     m.master_gain = lambda: gain
     m._spielende = lambda ausser=(), **rest: {
-        k: objekte[k][0] for k in spielend if k not in ausser}
+        k: objekte[k] for k in spielend if k not in ausser}
     m.gesetzt_master = []
     m.set_master_scalar = lambda w: m.gesetzt_master.append(w)
     m.set_master_gain = lambda w: m.gesetzt_master.append(("gain", w))
     return m, objekte
 
+
+class Messer:
+    def __init__(self, spitze):
+        self.spitze = spitze
+
+    def GetPeakValue(self):
+        return self.spitze
+
+
+class Ctl:
+    def __init__(self, messer):
+        self.messer = messer
+
+    def QueryInterface(self, art):
+        return self.messer
+
+
+class Sitzung:
+    """Attrappe einer Audio-Sitzung, wie pycaw sie liefert."""
+
+    def __init__(self, name, amp, spitze):
+        self.name = name
+        self.SimpleAudioVolume = Regler(amp)
+        self._ctl = Ctl(Messer(spitze))
+
+
+print("\n=== Mehrere Sitzungen je Programm ===")
+# Spotify und Discord haben regelmaessig zwei Sitzungen, meist gibt nur eine
+# davon Ton aus. Frueher behielt die Suche pro Programm nur die zuletzt
+# gefundene – erwischte sie die stille, galt Spotify als „spielt nicht“ und
+# blieb beim Wechsel auf voller Lautstaerke stehen.
+m = AudioEngine()
+sitzungen = [Sitzung("spotify.exe", 1.0, 0.0),      # still
+             Sitzung("spotify.exe", 1.0, 0.43),     # spielt
+             Sitzung("discord.exe", 1.0, 0.0),
+             Sitzung("discord.exe", 1.0, 0.0)]
+m._sessions = lambda: sitzungen
+m._key_von = lambda s: s.name
+spielt = m._spielende(messungen=1)
+pruefe("Spotify wird erkannt, obwohl eine Sitzung still ist",
+       "spotify.exe" in spielt, str(sorted(spielt)))
+pruefe("und zwar mit beiden Sitzungen",
+       len(spielt.get("spotify.exe", [])) == 2,
+       str(len(spielt.get("spotify.exe", []))))
+pruefe("Discord bleibt draussen – da spielt nichts",
+       "discord.exe" not in spielt)
+
+print("\n=== Beide Sitzungen werden leiser gestellt ===")
+m2, obj2 = motor_bauen({"chrome.exe": 1.0, "spotify.exe": [1.0, 0.8]},
+                       spielend=["spotify.exe"], gain=0.25)
+m2._pegel_angleichen("apps", ["chrome.exe"])
+werte = [r.amp for r in obj2["spotify.exe"]]
+pruefe("jede Sitzung mit dem Gain multipliziert",
+       abs(werte[0] - 0.25) < 1e-9 and abs(werte[1] - 0.2) < 1e-9,
+       ", ".join("{:.3f}".format(w) for w in werte))
 
 print("\n=== Gesamt -> App: spielende Apps kommen mit ===")
 m, obj = motor_bauen({"chrome.exe": 1.0, "spotify.exe": 1.0,

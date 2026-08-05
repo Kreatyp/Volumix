@@ -57,12 +57,10 @@ offenen Profil. Dazu zählen:
 
 - die Pegel aller Apps und der Gesamtlautstärke
 - welche davon am Rad bzw. an den Tasten hängen
-- Farbe und Hell/Dunkel
-- die Geschwindigkeit
 
-Sprache, Autostart, die Wahl zwischen Rad und Tasten, „Richtung umkehren",
-Live-Pegel und die Einblendung gelten dagegen **für alle Profile** – die hängen
-am Rechner, nicht an der Stimmung.
+**Alles aus den Einstellungen gilt für alle Profile** – Farbe, Hell/Dunkel,
+Geschwindigkeit, Sprache, Autostart. Ein Profil ist ein Arbeitsstand, kein
+zweites Programm.
 - **„Gesamtlautstärke" und einzelne Apps schließen sich aus** – sonst würde
   doppelt gedämpft: erst die App, dann nochmal global. Was dabei mit den Pegeln
   passiert, stellst du unter *Beim Wechsel Gesamt ↔ App* ein.

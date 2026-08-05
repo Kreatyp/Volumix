@@ -44,7 +44,10 @@ DEFAULTS = {
 # Was zu einem Profil gehoert. Alles andere in DEFAULTS gilt fuer das ganze
 # Programm – Sprache, Autostart, Eingabeart und so weiter aendern sich nicht
 # mit dem Profil, weil sie am Rechner haengen und nicht an der Stimmung.
-PROFIL_TEILE = ["mode", "accent", "speed"]
+# Ein Profil haelt nur den Arbeitsstand: Pegel und welche Apps am Rad
+# haengen. Farbe, Geschwindigkeit und alles andere gelten fuer das ganze
+# Programm – sonst springt beim Blaettern das halbe Fenster um.
+PROFIL_TEILE = []
 
 # Zaehlt hoch, wenn sich die Bedeutung gespeicherter Pegel aendert.
 # 1 = Pegel sind Reglerpositionen (vorher: rohe Amplituden).

@@ -145,17 +145,23 @@ def app_logo(groesse, farbe, dpr=1.0):
     fertig = _svg_cache.get(schluessel)
     if fertig is not None:
         return fertig
+    # Zwei Fader statt eines Lautsprechers: Das Programm ist ein Mischpult,
+    # und in der Taskleiste steht es sonst neben lauter aehnlichen Symbolen.
+    # Bewusst grob gehalten – bei 16 px zerfaellt jedes feinere Motiv.
     heller = QColor(farbe).lighter(122).name()
     svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">'
            '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">'
            '<stop offset="0" stop-color="{h}"/><stop offset="1" stop-color="{f}"/>'
            '</linearGradient></defs>'
            '<rect x="1" y="1" width="46" height="46" rx="13" fill="url(#g)"/>'
-           '<path d="M13 20h6l8-7v22l-8-7h-6z" fill="#FFFFFF"/>'
-           '<path d="M31 19.5a7 7 0 010 9" fill="none" stroke="#FFFFFF"'
-           ' stroke-width="3" stroke-linecap="round"/>'
-           '<path d="M35.5 16a12 12 0 010 16" fill="none" stroke="#FFFFFF"'
-           ' stroke-width="3" stroke-linecap="round" opacity="0.75"/>'
+           '<rect x="14.1" y="10" width="4.2" height="28" rx="2.1"'
+           ' fill="#FFFFFF" opacity="0.45"/>'
+           '<rect x="29.7" y="10" width="4.2" height="28" rx="2.1"'
+           ' fill="#FFFFFF" opacity="0.45"/>'
+           '<rect x="9" y="25" width="14.4" height="6.4" rx="3.2"'
+           ' fill="#FFFFFF"/>'
+           '<rect x="24.6" y="14" width="14.4" height="6.4" rx="3.2"'
+           ' fill="#FFFFFF"/>'
            '</svg>').format(h=heller, f=farbe)
     pm = _render(svg, groesse, dpr)
     _svg_cache[schluessel] = pm
