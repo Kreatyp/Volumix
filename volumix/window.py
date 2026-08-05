@@ -188,6 +188,7 @@ class MainWindow(QWidget):
             for k in config.PROFIL_TEILE:
                 profil.setdefault(k, self.cfg[k])
             profil.setdefault("targets", sorted(self.targets))
+            self._profil_umrechnen(profil)
         self._profil_sicherstellen()
         for k in config.PROFIL_TEILE:
             self.cfg[k] = self.profiles[self.cfg["profil"]].get(k, self.cfg[k])
@@ -451,15 +452,8 @@ class MainWindow(QWidget):
         k.lay.addLayout(tempo_kopf)
         self.tempo_wert = QLabel("{} %".format(self.cfg["speed"]))
         k.lay.addLayout(self._regler_zeile(
-            T("tempo_gesamt"), self.cfg["speed"], 10, 100,
-            self._tempo_setzen, self.tempo_wert, breite=76))
-        self.tempo_apps_wert = QLabel("{} %".format(self.cfg["speed_apps"]))
-        k.lay.addLayout(self._regler_zeile(
-            T("tempo_apps"), self.cfg["speed_apps"], 10, 100,
-            self._tempo_apps_setzen, self.tempo_apps_wert, breite=76))
-        self._schalter_zeile(
-            k, T("tempo_kurve"), self.cfg["speed_curve"],
-            self._tempo_kurve_setzen, hilfe=T("tempo_kurve_hilfe"))
+            "", self.cfg["speed"], 10, 100,
+            self._tempo_setzen, self.tempo_wert, breite=0))
         self.sw_aktiv = self._schalter_zeile(
             k, T("steuerung_aktiv"), self.cfg["active"], self._aktiv_setzen)
         self._schalter_zeile(
@@ -1096,6 +1090,19 @@ class MainWindow(QWidget):
         if self.cfg["profil"] not in self.profiles:
             self.cfg["profil"] = self._profil_namen()[0]
 
+    def _profil_umrechnen(self, profil):
+        """Alte Profile speichern App-Pegel als rohe Amplitude.
+
+        Seit die Regler aller Apps derselben Kurve folgen wie die
+        Gesamtlautstaerke, stehen dort Reglerpositionen. Ohne Umrechnung
+        waeren die alten Werte nach dem Laden zu leise.
+        """
+        if profil.get("fassung") == config.PROFIL_FASSUNG:
+            return
+        apps = profil.get("apps") or {}
+        profil["apps"] = {k: config.pos_aus_amp(v) for k, v in apps.items()}
+        profil["fassung"] = config.PROFIL_FASSUNG
+
     def _profil_abbild(self):
         """Der jetzige Zustand als Profil."""
         apps = {}
@@ -1218,28 +1225,12 @@ class MainWindow(QWidget):
         return self.TEMPO_MIN * (self.TEMPO_MAX / self.TEMPO_MIN) ** anteil
 
     def _tempo_uebernehmen(self):
-        """Beide Schrittweiten und die Pegelanpassung durchreichen."""
         self.engine.speed_step = self._schrittweite(self.cfg["speed"])
-        self.engine.speed_step_apps = self._schrittweite(
-            self.cfg["speed_apps"])
-        self.engine.speed_curve = bool(self.cfg["speed_curve"])
 
     def _tempo_setzen(self, wert):
         wert = int(wert)
         self.cfg["speed"] = wert
         self.tempo_wert.setText("{} %".format(wert))
-        self._tempo_uebernehmen()
-        self._speichern()
-
-    def _tempo_kurve_setzen(self, an):
-        self.cfg["speed_curve"] = bool(an)
-        self._tempo_uebernehmen()
-        self._speichern()
-
-    def _tempo_apps_setzen(self, wert):
-        wert = int(wert)
-        self.cfg["speed_apps"] = wert
-        self.tempo_apps_wert.setText("{} %".format(wert))
         self._tempo_uebernehmen()
         self._speichern()
 

@@ -20,11 +20,7 @@ OLD_RUN_VALUE = "ThumbwheelVolume"      # Altlast vor der Umbenennung
 
 DEFAULTS = {
     "targets": [],
-    # 10..100 % – wie schnell geregelt wird. Zwei Werte, weil eine einzelne
-    # App feiner dosiert werden will als die Gesamtlautstaerke.
-    "speed": 40,             # Gesamtlautstaerke
-    "speed_apps": 20,        # einzelne Apps
-    "speed_curve": True,     # leise Pegel in kleineren Schritten regeln
+    "speed": 40,             # 10..100 % – wie weit eine Rastung regelt
     "reverse": False,
     "active": True,
     "media_keys": False,     # Lautstaerke-Tasten statt Daumenrad
@@ -48,7 +44,25 @@ DEFAULTS = {
 # Was zu einem Profil gehoert. Alles andere in DEFAULTS gilt fuer das ganze
 # Programm – Sprache, Autostart, Eingabeart und so weiter aendern sich nicht
 # mit dem Profil, weil sie am Rechner haengen und nicht an der Stimmung.
-PROFIL_TEILE = ["mode", "accent", "speed", "speed_apps", "speed_curve"]
+PROFIL_TEILE = ["mode", "accent", "speed"]
+
+# Zaehlt hoch, wenn sich die Bedeutung gespeicherter Pegel aendert.
+# 1 = Pegel sind Reglerpositionen (vorher: rohe Amplituden).
+PROFIL_FASSUNG = 1
+
+# Windows' Gesamtlautstaerke daempft nicht linear: Amplitude = Position^gamma.
+# Gemessener Wert; die Audio-Schicht liest den echten laufend vom Geraet.
+GAMMA_STANDARD = 1.7
+
+
+def pos_aus_amp(amp, gamma=GAMMA_STANDARD):
+    """Amplitude -> Reglerposition."""
+    return max(0.0, min(1.0, float(amp))) ** (1.0 / gamma)
+
+
+def amp_aus_pos(pos, gamma=GAMMA_STANDARD):
+    """Reglerposition -> Amplitude."""
+    return max(0.0, min(1.0, float(pos))) ** gamma
 
 # Prozesse, die zwar eine Audiositzung anlegen, aber praktisch nie Ton machen.
 DEFAULT_HIDDEN = [
@@ -75,10 +89,6 @@ def load():
     for k in DEFAULTS:
         if k in daten:
             cfg[k] = daten[k]
-    # Frueher gab es nur eine Geschwindigkeit. Wer von damals kommt, behaelt
-    # sie fuer beides – sonst regelt es nach dem Update ploetzlich anders.
-    if "speed_apps" not in daten and "speed" in daten:
-        cfg["speed_apps"] = cfg["speed"]
     if not isinstance(cfg.get("targets"), list):
         cfg["targets"] = []
     if not isinstance(cfg.get("hidden"), list):

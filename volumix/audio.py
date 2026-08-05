@@ -13,6 +13,7 @@ import time
 from comtypes import CoInitialize, CoUninitialize
 from pycaw.pycaw import AudioUtilities, IAudioMeterInformation
 
+from .config import GAMMA_STANDARD as GAMMA_STANDARD_CFG
 from .config import MASTER_KEY, SYSTEM_KEY
 from .sprache import T
 
@@ -55,9 +56,8 @@ class AudioEngine:
         self.targets = set()
         # Prozentpunkte je Rastung. Getrennt, weil eine einzelne App feiner
         # dosiert werden will als die Gesamtlautstaerke.
-        self.speed_step = 2.0          # Gesamtlautstaerke
-        self.speed_step_apps = 2.0     # einzelne Apps
-        self.speed_curve = True        # kleinere Schritte bei leisen Pegeln
+        self.speed_step = 2.0          # Prozentpunkte je Rastung
+        self.gamma = self.GAMMA_STANDARD
         self.switch_mode = "none"
         self.meters_an = True
 
@@ -140,6 +140,9 @@ class AudioEngine:
                     self._jetzt[key] = wert * 100.0
                     self.set_volume(key, wert)
                 if refresh:
+                    # Die Kurve haengt am Ausgabegeraet – beim Umstecken
+                    # aendert sie sich, also regelmaessig nachlesen.
+                    self._gamma_auffrischen()
                     self._apps_melden()
                 if scroll:
                     self._scroll_anwenden(scroll)
@@ -217,10 +220,57 @@ class AudioEngine:
         werte = {}
         for key, m in self._meter_cache[1].items():
             try:
-                werte[key] = float(m.GetPeakValue())
+                # In Reglerskala melden, damit der Ausschlag zur Fuellung passt
+                werte[key] = self.pos_aus_amp(float(m.GetPeakValue()))
             except Exception:
                 pass
         return werte
+
+    # ---- Reglerweg und Amplitude ----------------------------------------
+    #
+    # Windows' Gesamtlautstaerke ist nicht linear: Der halbe Reglerweg daempft
+    # auf rund 30 % Amplitude, nicht auf 50 %. Die Regler einzelner Apps sind
+    # dagegen reine Amplitudenfaktoren – 50 % sind dort wirklich 50 %.
+    #
+    # Deshalb gibt es hier zwei Ebenen:
+    #   Position   – was der Regler zeigt (0..1), fuer alle gleich
+    #   Amplitude  – was tatsaechlich herauskommt (0..1)
+    #
+    # Umgerechnet wird mit Amplitude = Position^gamma. gamma stammt aus dem
+    # laufenden System: Windows liefert zu jeder Reglerstellung auch den
+    # dB-Wert, und aus beidem laesst sich der Exponent ablesen.
+    GAMMA_STANDARD = GAMMA_STANDARD_CFG   # falls nichts abzulesen ist
+
+    def _gamma_auffrischen(self):
+        """Den Exponenten aus dem aktuellen Zustand der Gesamtlautstaerke lesen.
+
+        Nur im mittleren Bereich sinnvoll: Nahe 0 und nahe 1 wird die Rechnung
+        unzuverlaessig, weil der Logarithmus dort gegen null geht.
+        """
+        try:
+            s = float(self._endpoint().GetMasterVolumeLevelScalar())
+            db = float(self._endpoint().GetMasterVolumeLevel())
+        except Exception:
+            self._epv = None
+            return
+        if not (0.05 < s < 0.95) or db < -90.0:
+            return
+        amp = 10.0 ** (db / 20.0)
+        if amp <= 0.0:
+            return
+        g = math.log(amp) / math.log(s)
+        if 1.0 <= g <= 4.0:
+            self.gamma = g
+
+    def amp_aus_pos(self, pos):
+        """Reglerposition -> tatsaechliche Amplitude."""
+        pos = max(0.0, min(1.0, float(pos)))
+        return pos ** self.gamma
+
+    def pos_aus_amp(self, amp):
+        """Amplitude -> Reglerposition."""
+        amp = max(0.0, min(1.0, float(amp)))
+        return amp ** (1.0 / self.gamma)
 
     # ---- Gesamtlautstaerke ----------------------------------------------
     def _endpoint(self):
@@ -265,26 +315,37 @@ class AudioEngine:
 
     # ---- Pegel setzen und lesen -----------------------------------------
     def set_volume(self, key, wert):
+        """`wert` ist eine Reglerposition (0..1), keine Amplitude."""
         if key == MASTER_KEY:
-            self.set_master_scalar(wert)
+            self.set_master_scalar(wert)      # Windows rechnet selbst um
             return
-        for v in self._by_key().get(key, []):
-            try:
-                v.SetMasterVolume(float(wert), None)
-            except Exception:
-                self._cache_weg()
+        self.set_app_amplitude(key, self.amp_aus_pos(wert))
 
     def prozent(self, key, by=None):
+        """Reglerposition in Prozent – fuer Gesamt und Apps dieselbe Skala."""
         if key == MASTER_KEY:
             cur = self.master_scalar()
             return None if cur is None else cur * 100.0
+        amp = self.app_amplitude(key, by)
+        return None if amp is None else self.pos_aus_amp(amp) * 100.0
+
+    # ---- die tatsaechliche Amplitude einer App ---------------------------
+    def app_amplitude(self, key, by=None):
         regler = (by or self._by_key()).get(key, [])
         if not regler:
             return None
         try:
-            return regler[0].GetMasterVolume() * 100.0
+            return float(regler[0].GetMasterVolume())
         except Exception:
             return None
+
+    def set_app_amplitude(self, key, amp):
+        amp = max(0.0, min(1.0, float(amp)))
+        for v in self._by_key().get(key, []):
+            try:
+                v.SetMasterVolume(amp, None)
+            except Exception:
+                self._cache_weg()
 
     def get_mute(self, key):
         try:
@@ -374,24 +435,26 @@ class AudioEngine:
         if gain is None:
             return
         by = self._by_key()
-        pegel = {k: p for k, p in ((k, self.prozent(k, by)) for k in keys)
-                 if p is not None}
+        # Hier geht es um tatsaechliche Lautheit, nicht um Reglerwege –
+        # deshalb durchgehend mit Amplituden gerechnet.
+        pegel = {k: a for k, a in ((k, self.app_amplitude(k, by)) for k in keys)
+                 if a is not None}
         if not pegel:
             return
         # Apps, die gerade wirklich spielen, muessen mit – fuer sie aendert
         # sich die Gesamtdaempfung genauso. Stille Apps bleiben in Ruhe.
         mit = self._spielende(ausser=set(pegel))
         if richtung == "apps":
-            for key, prozent in pegel.items():
-                self.set_volume(key, max(0.0, min(1.0, prozent / 100.0 * gain)))
+            for key, amp in pegel.items():
+                self.set_app_amplitude(key, amp * gain)
             self._skalieren(mit.values(), gain)
             self._setzen_lassen()
             self.set_master_scalar(1.0)
         else:
-            self.set_master_gain(min(pegel.values()) / 100.0 * gain)
+            self.set_master_gain(min(pegel.values()) * gain)
             self._setzen_lassen()
             for key in pegel:
-                self.set_volume(key, 1.0)
+                self.set_app_amplitude(key, 1.0)
             self._skalieren(mit.values(), None)
         self._ziel.clear()
         self._jetzt.clear()
@@ -426,17 +489,6 @@ class AudioEngine:
         self._jetzt.clear()
 
     # ---- Daumenrad -------------------------------------------------------
-    def _kruemmung(self, pegel):
-        """Wie stark ein Schritt beim aktuellen Pegel ausfaellt.
-
-        Bei 5 % Lautstaerke sind vier Prozentpunkte fast eine Verdopplung, bei
-        80 % kaum zu hoeren. Ist die Anpassung an, wird der Schritt unten
-        kleiner und oben groesser – in der Mitte bleibt er, wie eingestellt.
-        """
-        if not self.speed_curve:
-            return 1.0
-        p = max(0.0, min(100.0, pegel))
-        return 0.28 + 1.44 * (p / 100.0)      # 0 % -> 0,28x, 50 % -> 1x, 100 % -> 1,72x
 
     def _scroll_anwenden(self, delta):
         """Setzt nur das Ziel – gefahren wird in kleinen Schritten."""
@@ -444,10 +496,9 @@ class AudioEngine:
         if not ziele:
             return
         by = self._by_key()
-        # Gesamt und Apps schliessen sich aus – ein Blick auf die Ziele reicht,
-        # um zu wissen, welche Schrittweite gilt.
-        schritt = (self.speed_step if MASTER_KEY in ziele
-                   else self.speed_step_apps)
+        # Eine Schrittweite fuer alles: Gesamt und Apps liegen jetzt auf
+        # derselben Skala, also fuehlt sich derselbe Schritt gleich an.
+        aenderung = delta * self.speed_step
         for key in ziele:
             basis = self._ziel.get(key)
             if basis is None:
@@ -455,10 +506,7 @@ class AudioEngine:
                 if basis is None:
                     continue
                 self._jetzt[key] = basis
-            # Der Schritt haengt am aktuellen Pegel, nicht nur an der
-            # Einstellung – deshalb hier drin und je Ziel einzeln.
-            ziel = max(0.0, min(100.0,
-                                basis + delta * schritt * self._kruemmung(basis)))
+            ziel = max(0.0, min(100.0, basis + aenderung))
             self._ziel[key] = ziel
             weg = abs(ziel - self._jetzt.get(key, ziel))
             self._schritt[key] = max(1, int(weg / 5.0 + 0.5))
@@ -532,7 +580,8 @@ class AudioEngine:
             if key in gesehen:
                 continue
             try:
-                vol = float(sav.GetMasterVolume())
+                # als Reglerposition melden, nicht als Amplitude
+                vol = self.pos_aus_amp(float(sav.GetMasterVolume()))
             except Exception:
                 vol = 1.0
             try:

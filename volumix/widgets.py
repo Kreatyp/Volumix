@@ -200,10 +200,9 @@ class VolumeSlider(Slider):
             self.sliderReleased.emit()
 
     def set_pegel(self, wert):
-        # Der rohe Spitzenwert ist eine Amplitude: leise Stellen liegen bei
-        # 0,05 und waeren als Balken kaum zu sehen. Die Wurzel staucht den
-        # Bereich so, wie das Ohr ihn ohnehin wahrnimmt.
-        wert = max(0.0, min(1.0, wert)) ** 0.5
+        # Kommt bereits in Reglerskala herein – die Audio-Schicht rechnet den
+        # Spitzenwert um. Hier nichts mehr stauchen, sonst zweimal.
+        wert = max(0.0, min(1.0, wert))
         self._pegel = wert
         # langsamer Rueckgang, damit Spitzen stehen bleiben statt zu zappeln
         neu = max(wert, self._halten - 0.06)

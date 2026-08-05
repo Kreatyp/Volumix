@@ -53,6 +53,25 @@ def warten(n=15):
         time.sleep(0.02)
 
 
+def nach_vorn():
+    """Fenster aktivieren.
+
+    Ohne aktives Fenster vergibt Qt keinen Eingabefokus. Beim echten Bedienen
+    ist es immer aktiv – im Test haengt es davon ab, was Windows gerade in
+    den Vordergrund gestellt hat, etwa nach einer vorherigen Testreihe.
+    """
+    f.activateWindow()
+    f.raise_()
+    warten(5)
+
+
+def feld_oeffnen():
+    """Namensfeld anwaehlen, wie es ein Klick tun wuerde."""
+    nach_vorn()
+    f.profil_name.setFocus()
+    warten(5)
+
+
 print("\n=== Es gibt immer ein offenes Profil ===")
 pruefe("eins angelegt", len(f.profiles) == 1, str(list(f.profiles)))
 pruefe("und geoeffnet", f.cfg["profil"] in f.profiles, repr(f.cfg["profil"]))
@@ -64,6 +83,7 @@ pruefe("Pfeile aus, solange es nur eins gibt",
 erstes = f.cfg["profil"]
 
 print("\n=== Plus legt sofort an, ohne Nachfrage ===")
+nach_vorn()
 f.btn_prof_neu.click()
 warten()
 pruefe("zwei Profile da", len(f.profiles) == 2, str(sorted(f.profiles)))
@@ -83,14 +103,14 @@ pruefe("weiterhin zwei", len(f.profiles) == 2)
 pruefe("Papierkorb wieder weg", not f.btn_prof_weg.isVisible())
 pruefe("Pfeile wieder da", f.btn_prof_vor.isVisible())
 
-f.profil_name.setFocus()
+feld_oeffnen()
 f.profil_name.setText("   ")
 f.profil_name.clearFocus()
 warten()
 pruefe("leerer Name wird abgelehnt", f.cfg["profil"] == "Zocken"
        and f.profil_name.text() == "Zocken", f.profil_name.text())
 
-f.profil_name.setFocus()
+feld_oeffnen()
 f.profil_name.setText(erstes)          # Name schon vergeben
 f.profil_name.clearFocus()
 warten()
@@ -102,14 +122,12 @@ pruefe("Pfeile jetzt an",
 print("\n=== Einstellungen gehoeren zum Profil ===")
 f._farbe_setzen("lime")
 f._tempo_setzen(95)
-f._tempo_apps_setzen(15)
 warten()
 pruefe("Farbe im offenen Profil gelandet",
        f.profiles["Zocken"]["accent"] == "lime",
        str(f.profiles["Zocken"].get("accent")))
-pruefe("Geschwindigkeit ebenfalls",
-       f.profiles["Zocken"]["speed"] == 95
-       and f.profiles["Zocken"]["speed_apps"] == 15)
+pruefe("Geschwindigkeit ebenfalls", f.profiles["Zocken"]["speed"] == 95,
+       str(f.profiles["Zocken"].get("speed")))
 pruefe("das andere Profil blieb unberuehrt",
        f.profiles[erstes]["accent"] != "lime",
        str(f.profiles[erstes].get("accent")))
@@ -154,7 +172,7 @@ pruefe("Pfeil rechts wieder zurueck", f.cfg["profil"] == vorher,
        f.cfg["profil"])
 
 # Im Namensfeld gehoeren die Pfeile dem Schreibzeiger
-f.profil_name.setFocus()
+feld_oeffnen()
 warten()
 stand = f.cfg["profil"]
 f.profil_name.keyPressEvent(QKeyEvent(QKeyEvent.KeyPress, Qt.Key_Left,
@@ -194,7 +212,7 @@ pruefe("Farbe steht im Profil",
        gespeichert["profiles"]["Zocken"]["accent"] == "lime")
 
 print("\n=== Loeschen ueber den Papierkorb ===")
-f.profil_name.setFocus()
+feld_oeffnen()
 warten()
 pruefe("Papierkorb da, solange das Feld offen ist",
        f.btn_prof_weg.isVisible() and f.btn_prof_weg.isEnabled())
@@ -204,7 +222,7 @@ pruefe("geloescht", "Zocken" not in f.profiles, str(sorted(f.profiles)))
 pruefe("das verbliebene ist offen", f.cfg["profil"] == erstes, f.cfg["profil"])
 f._profil_loeschen(erstes)
 pruefe("das letzte laesst sich nicht loeschen", len(f.profiles) == 1)
-f.profil_name.setFocus()
+feld_oeffnen()
 warten()
 pruefe("Papierkorb auch beim letzten Profil sichtbar",
        f.btn_prof_weg.isVisible())

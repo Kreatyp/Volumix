@@ -58,7 +58,7 @@ offenen Profil. Dazu zählen:
 - die Pegel aller Apps und der Gesamtlautstärke
 - welche davon am Rad bzw. an den Tasten hängen
 - Farbe und Hell/Dunkel
-- beide Geschwindigkeiten und „Leise feiner regeln"
+- die Geschwindigkeit
 
 Sprache, Autostart, die Wahl zwischen Rad und Tasten, „Richtung umkehren",
 Live-Pegel und die Einblendung gelten dagegen **für alle Profile** – die hängen
@@ -87,7 +87,8 @@ und ist sofort umgestellt.
 
 ### Steuerung
 
-- **Geschwindigkeit** (10–100 %) – wie schnell das Daumenrad regelt.
+- **Geschwindigkeit** (10–100 %) – wie weit eine Rastung regelt. Ein Wert
+  genügt für Gesamt und Apps, weil beide auf derselben Kurve liegen.
 - **Steuerung aktiv** – schaltet die Funktion an/aus (auch per Tray-Menü).
 - **Horizontales Scrollen verwenden** – an: das Daumenrad steuert die
   Lautstärke. Aus: stattdessen die **Lautstärke-Tasten** der Tastatur.
@@ -113,11 +114,36 @@ ausgibt** – läuft Musik in Spotify, während du auf Chrome wechselst, wird
 Spotify mit heruntergeregelt. Apps, die nur offen sind und schweigen (typisch:
 Discord), bleiben unangetastet.
 
-> **Warum die Prozentzahlen nicht gleich aussehen:** Der Windows-Regler ist
-> *audio-tapered*, App-Regler sind lineare Amplitudenfaktoren. Auf diesem
-> Rechner dämpft die Gesamtlautstärke bei 37,5 % tatsächlich auf 18,6 %.
-> Volumix rechnet deshalb in Dezibel um: Es klingt **exakt gleich laut**, aber
-> die Zahl auf der anderen Seite steht höher. Kein Rundungsfehler.
+> Beim Umrechnen geht Volumix über Dezibel: Es klingt nach dem Wechsel
+> **exakt gleich laut**, auch wenn die Zahl auf der anderen Seite anders
+> steht. Kein Rundungsfehler.
+
+## Alle Regler auf einer Kurve
+
+Windows' Gesamtlautstärke dämpft nicht linear: Der halbe Reglerweg bedeutet
+rund 30 % Amplitude, nicht 50 %. Die Regler einzelner Apps sind dagegen reine
+Amplitudenfaktoren – dort sind 50 % wirklich 50 %.
+
+Deshalb fühlten sich beide Regler unterschiedlich an: unten am App-Regler
+sprang die Lautstärke, während der Windows-Regler dort fein blieb.
+
+Volumix bringt die App-Regler auf dieselbe Kurve. Was ein Regler zeigt, ist
+jetzt überall ein **Reglerweg**, keine rohe Amplitude:
+
+| Reglerweg | tatsächliche Amplitude |
+|---|---|
+| 10 % | 2 % |
+| 25 % | 10 % |
+| 50 % | 31 % |
+| 75 % | 61 % |
+
+Den nötigen Exponenten liest Volumix im Betrieb vom Ausgabegerät ab – Windows
+verrät zu jeder Reglerstellung auch den Dezibelwert, und daraus ergibt er sich.
+Steckst du ein anderes Gerät an, passt sich die Kurve mit an. Bei einem Gerät
+mit linearer Kurve ändert sich schlicht nichts.
+
+Nebeneffekt: Unten wird von selbst feiner geregelt als oben, ohne dass es dafür
+eine eigene Einstellung braucht.
 
 ### Anzeige
 
