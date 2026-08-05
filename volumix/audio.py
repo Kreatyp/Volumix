@@ -340,12 +340,28 @@ class AudioEngine:
             return None
 
     def set_app_amplitude(self, key, amp):
+        """Setzt die Amplitude und meldet, ob es angekommen ist.
+
+        Der Sitzungsspeicher kann veraltet sein – dann zeigen die Objekte auf
+        Sitzungen, die es nicht mehr gibt, und das Setzen verpufft still.
+        Deshalb ein zweiter Versuch mit frisch geholter Liste.
+        """
         amp = max(0.0, min(1.0, float(amp)))
-        for v in self._by_key().get(key, []):
-            try:
-                v.SetMasterVolume(amp, None)
-            except Exception:
-                self._cache_weg()
+        for versuch in (0, 1):
+            regler = self._by_key(max_alter=2.0 if versuch == 0 else 0.0)
+            regler = regler.get(key, [])
+            if regler and all(self._amp_setzen(v, amp) for v in regler):
+                return True
+            self._cache_weg()
+        return False
+
+    @staticmethod
+    def _amp_setzen(sav, amp):
+        try:
+            sav.SetMasterVolume(amp, None)
+            return True
+        except Exception:
+            return False
 
     def get_mute(self, key):
         try:
@@ -398,13 +414,19 @@ class AudioEngine:
 
     @staticmethod
     def _skalieren(regler, faktor):
-        """Regler mit `faktor` multiplizieren, oder auf 100 % (faktor=None)."""
+        """Regler mit `faktor` multiplizieren, oder auf 100 % (faktor=None).
+
+        Meldet zurueck, ob alle erreicht wurden – beim Angleichen haengt der
+        Gehoerschutz daran.
+        """
+        alle = True
         for sav in regler:
             try:
                 neu = 1.0 if faktor is None else float(sav.GetMasterVolume()) * faktor
                 sav.SetMasterVolume(max(0.0, min(1.0, neu)), None)
             except Exception:
-                pass
+                alle = False
+        return alle
 
     @staticmethod
     def _setzen_lassen(sekunden=0.08):
@@ -434,7 +456,9 @@ class AudioEngine:
         gain = self.master_gain()
         if gain is None:
             return
-        by = self._by_key()
+        # Frisch holen: Hier haengt der Gehoerschutz dran, ein veralteter
+        # Sitzungsspeicher liesse das Leiserstellen still ins Leere laufen.
+        by = self._by_key(max_alter=0.0)
         # Hier geht es um tatsaechliche Lautheit, nicht um Reglerwege –
         # deshalb durchgehend mit Amplituden gerechnet.
         pegel = {k: a for k, a in ((k, self.app_amplitude(k, by)) for k in keys)
@@ -445,9 +469,13 @@ class AudioEngine:
         # sich die Gesamtdaempfung genauso. Stille Apps bleiben in Ruhe.
         mit = self._spielende(ausser=set(pegel))
         if richtung == "apps":
-            for key, amp in pegel.items():
-                self.set_app_amplitude(key, amp * gain)
-            self._skalieren(mit.values(), gain)
+            leiser = all([self.set_app_amplitude(key, amp * gain)
+                          for key, amp in pegel.items()])
+            leiser = self._skalieren(mit.values(), gain) and leiser
+            if not leiser:
+                # Lieber gar nichts aendern als die Gesamtlautstaerke
+                # aufreissen, waehrend die Apps noch laut stehen.
+                return
             self._setzen_lassen()
             self.set_master_scalar(1.0)
         else:

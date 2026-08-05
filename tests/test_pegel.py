@@ -72,8 +72,9 @@ def auswerten():
         print("  FEHL Balken schlaegt nicht aus"); ok = False
     else:
         print("  OK   Balken schlaegt sichtbar aus")
-    # Wurzelskala: aus 0,08 roh muessen ~0,28 werden
-    print("\nWurzelskala: roh {:.3f} -> angezeigt {:.3f}".format(
+    # Der Ausschlag kommt bereits in Reglerskala an – die Audio-Schicht
+    # rechnet ihn mit derselben Kurve um wie die Regler selbst.
+    print("\nauf der Reglerskala: gemeldet {:.3f} -> Balken {:.3f}".format(
         gesehen["max_wert"], gesehen["max_halten"]))
     print("\n{}".format("Alles gruen." if ok else "Fehler!"))
     f._beenden()
