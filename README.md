@@ -209,6 +209,14 @@ eine eigene Einstellung braucht.
 - **Lautstärke-Einblendung anzeigen**, dazu **Größe** und **Position**. Jede
   Änderung wird sofort als Vorschau eingeblendet. Ist die Einblendung aus,
   sind die drei Regler ausgegraut – sie hätten dann nichts zu tun.
+- **Ton bei voller Lautstärke** – ein kurzer Anschlag (90 ms), sobald der
+  Regler oben ankommt. Er kommt beim *Ankommen*, nicht beim Weiterdrehen: Wer
+  schon auf 100 % steht und weiterdreht, hört nichts mehr. Wer am Anschlag
+  hin und her wackelt, ebenfalls nicht – dazwischen liegt eine Sperre.
+
+  > Sobald der Ton einmal gespielt hat, legt Windows für Volumix eine eigene
+  > Audiositzung an. Die App taucht dann selbst im Mixer auf; über *Apps
+  > wählen* lässt sie sich ausblenden.
 
 ### Sichtbare Apps
 

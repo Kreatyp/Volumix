@@ -13,6 +13,7 @@ import time
 from comtypes import CoInitialize, CoUninitialize
 from pycaw.pycaw import AudioUtilities, IAudioMeterInformation
 
+from . import klang
 from .config import GAMMA_STANDARD as GAMMA_STANDARD_CFG
 from .config import MASTER_KEY, SYSTEM_KEY
 from .sprache import T
@@ -60,6 +61,7 @@ class AudioEngine:
         self.gamma = self.GAMMA_STANDARD
         self.switch_mode = "none"
         self.meters_an = True
+        self.ton_am_anschlag = True
 
         self._epv = None
         self._sess_cache = None        # (Zeitpunkt, {key: [SimpleAudioVolume]})
@@ -541,6 +543,7 @@ class AudioEngine:
         # Eine Schrittweite fuer alles: Gesamt und Apps liegen jetzt auf
         # derselben Skala, also fuehlt sich derselbe Schritt gleich an.
         aenderung = delta * self.speed_step
+        angekommen = False
         for key in ziele:
             basis = self._ziel.get(key)
             if basis is None:
@@ -549,9 +552,15 @@ class AudioEngine:
                     continue
                 self._jetzt[key] = basis
             ziel = max(0.0, min(100.0, basis + aenderung))
+            # Der Ton kommt beim Ankommen, nicht beim Weiterdrehen: Wer oben
+            # steht und noch dreht, hat schon 100 als Ausgangswert.
+            if ziel >= 100.0 > basis:
+                angekommen = True
             self._ziel[key] = ziel
             weg = abs(ziel - self._jetzt.get(key, ziel))
             self._schritt[key] = max(1, int(weg / 5.0 + 0.5))
+        if angekommen and self.ton_am_anschlag:
+            klang.anschlag()
 
     def _fahren(self):
         fertig = []

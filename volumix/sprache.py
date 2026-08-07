@@ -139,6 +139,18 @@ TEXTE = {
     "im_fenster": ("IM FENSTER", "IN THE WINDOW"),
     "einblendung": ("EINBLENDUNG", "ON-SCREEN DISPLAY"),
     "system": ("SYSTEM", "SYSTEM"),
+    "ton": ("TON", "SOUND"),
+    "ton_anschlag": ("Ton bei voller Lautstärke",
+                     "Sound at full volume"),
+    "ton_hilfe": (
+        "Ein kurzer Ton, sobald der Regler oben ankommt — damit man auch "
+        "ohne Hinsehen merkt, dass es nicht weiter geht.\n\n"
+        "Er kommt beim Ankommen, nicht beim Weiterdrehen: Wer schon auf "
+        "100 % steht und weiterdreht, hört nichts mehr.",
+        "A short sound the moment the slider reaches the top — so you notice "
+        "it will not go further without having to look.\n\n"
+        "It plays on arrival, not while you keep turning: once you are at "
+        "100 %, turning further stays silent."),
     "wechsel_none": ("Nichts ändern", "Change nothing"),
     "wechsel_carry": ("Pegel mitnehmen", "Carry level over"),
     "wechsel_apps100": ("Apps auf 100 %", "Apps to 100%"),

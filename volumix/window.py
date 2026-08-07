@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QApplication, QButtonGroup, QDialog, QFrame,
                                QSizePolicy, QSystemTrayIcon,
                                QVBoxLayout, QWidget)
 
-from . import config, icons
+from . import config, icons, klang
 from .audio import AudioEngine, huebscher_name
 from .config import MASTER_KEY
 from .hooks import InputHook
@@ -367,6 +367,7 @@ class MainWindow(QWidget):
         self.engine.targets = set(self.targets)
         self.engine.switch_mode = self.cfg["switch_mode"]
         self.engine.meters_an = self.cfg["meters"]
+        self.engine.ton_am_anschlag = self.cfg["ton_anschlag"]
         self._tempo_uebernehmen()
 
         self.apps_bereit.connect(self._apps_uebernehmen)
@@ -695,7 +696,12 @@ class MainWindow(QWidget):
             self.osd_y_wert, rastpunkte=(50,)))
         self.osd_teile.setEnabled(self.cfg["osd_enabled"])
         o.lay.addWidget(self.osd_teile)
-        return self._bereich(k, o)
+
+        t = Karte(self.theme, T("ton"))
+        self._schalter_zeile(
+            t, T("ton_anschlag"), self.cfg["ton_anschlag"],
+            self._ton_setzen, hilfe=T("ton_hilfe"))
+        return self._bereich(k, o, t)
 
     def _bereich_allgemein(self):
         k = Karte(self.theme, T("sprache_abschnitt"))
@@ -1581,6 +1587,13 @@ class MainWindow(QWidget):
         self.engine.meters_an = an
         for row in self.rows.values():
             row.set_meter_sichtbar(an)
+        self._speichern()
+
+    def _ton_setzen(self, an):
+        self.cfg["ton_anschlag"] = an
+        self.engine.ton_am_anschlag = an
+        if an:
+            klang.anschlag()          # einmal hoeren, was man da einschaltet
         self._speichern()
 
     def _osd_setzen(self, an):

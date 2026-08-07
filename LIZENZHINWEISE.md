@@ -32,6 +32,12 @@ vollständige Lizenztext direkt daneben in `PlusJakartaSans-OFL.txt`.
 > Die OFL verlangt lediglich, dass die Schrift nicht unter ihrem eigenen Namen
 > verkauft wird und der Lizenztext mitwandert. Beides ist erfüllt.
 
+## Klang
+
+Der Ton am Anschlag (`volumix/toene/anschlag.wav`) ist gerechnet, nicht
+aufgenommen: ein Sinus bei 880 Hz mit exponentiellem Abfall. Es steckt also
+kein fremdes Material darin.
+
 ## Programmsymbole
 
 Die Symbole von Chrome, Discord, Spotify und anderen Programmen holt Volumix

@@ -174,6 +174,9 @@ def main():
         # License, die das Mitliefern ausdruecklich erlaubt – der Lizenztext
         # liegt daneben und wandert mit.
         "--add-data", os.path.join(HIER, "volumix", "fonts") + ";volumix/fonts",
+        # Der Ton am Anschlag – winsound braucht eine echte Datei auf der
+        # Platte, deshalb muss sie mit ins Paket.
+        "--add-data", os.path.join(HIER, "volumix", "toene") + ";volumix/toene",
         # Was PyInstaller nicht von allein findet
         "--hidden-import", "pynput.mouse._win32",
         "--hidden-import", "pynput.keyboard._win32",

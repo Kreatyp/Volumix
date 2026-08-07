@@ -27,6 +27,7 @@ DEFAULTS = {
     "titel_taste": False,    # Mehrfachdruck auf Wiedergabe/Pause
     "switch_mode": "none",   # was beim Wechsel Gesamt <-> App passiert
     "meters": True,          # Live-Pegel neben den Reglern
+    "ton_anschlag": True,    # kurzer Ton bei voller Lautstaerke
     "osd_enabled": True,
     "osd_size": 45,
     "osd_x": 50,
