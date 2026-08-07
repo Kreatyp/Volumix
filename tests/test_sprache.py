@@ -34,6 +34,14 @@ from volumix.window import MainWindow                          # noqa: E402
 
 fehler = 0
 
+# Dieser Test gibt Texte aus der Oberflaeche aus – darunter Zeichen wie „↔“,
+# die in der Windows-Konsole nicht darstellbar sind. Ohne das hier bricht der
+# Test an seiner eigenen Ausgabe ab, obwohl fachlich alles stimmt.
+try:
+    sys.stdout.reconfigure(errors="replace")
+except Exception:
+    pass
+
 
 def pruefe(name, bedingung, zusatz=""):
     global fehler
@@ -65,14 +73,20 @@ pruefe("Einstellung gespeichert", f.cfg["sprache"] == "de")
 f._seite(1)
 app.processEvents()
 texte = texte_im_fenster(f)
-pruefe("Einstellungen deutsch", "STEUERUNG" in texte,
+pruefe("Einstellungen deutsch", "EINGABE" in texte,
        "gefunden: {}".format(sorted(t for t in texte if t.isupper())[:4]))
 pruefe("Sprachabschnitt vorhanden", "SPRACHE" in texte)
+# Die Reiter zeichnen sich selbst, stehen also in keinem Beschriftungsfeld
+nr = f.bereich_nr("steuerung")
+pruefe("Reiter deutsch", f.reiter.namen[nr] == "Steuerung",
+       "gefunden: {}".format(f.reiter.namen))
 
 f._sprache_setzen("en")
 app.processEvents()
 texte = texte_im_fenster(f)
-pruefe("zurueck auf Englisch", "CONTROL" in texte)
+pruefe("zurueck auf Englisch", "INPUT" in texte)
+pruefe("Reiter englisch", f.reiter.namen[nr] == "Control",
+       "gefunden: {}".format(f.reiter.namen))
 pruefe("Ansicht bleibt in den Einstellungen", f.einst_seite.isVisible())
 
 f._seite(0)
@@ -186,6 +200,8 @@ gerufen = set(re.findall(r"""T\(\s*["']([^"']+)["']""", quellen))
 # Schluessel, die im Code zusammengesetzt werden – z. B. T("wechsel_" + wert)
 gebaut = set(re.findall(r"""T\(\s*["']([a-z_]+_)["']\s*\+""", quellen))
 gerufen -= gebaut
+# Die Namen der Reiter stehen in einer Liste, nicht einzeln im Quelltext
+gerufen |= set(MainWindow.BEREICHE)
 tot = sorted(k for k in sprache.TEXTE
              if k not in gerufen
              and not any(k.startswith(p) for p in gebaut))

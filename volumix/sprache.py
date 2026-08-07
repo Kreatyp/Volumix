@@ -72,16 +72,19 @@ TEXTE = {
         "to all profiles alike."),
 
     # ---- Einstellungen: Abschnitte ----
-    "design": ("DESIGN", "APPEARANCE"),
-    "steuerung": ("STEUERUNG", "CONTROL"),
-    "anzeige": ("ANZEIGE", "DISPLAY"),
+    # Die vier Reiter – gemischt geschrieben wie die Ueberschrift darueber.
+    # Die Karten darin tragen die gesperrten Grossbuchstaben.
+    "design": ("Design", "Appearance"),
+    "steuerung": ("Steuerung", "Control"),
+    "anzeige": ("Anzeige", "Display"),
+    "allgemein": ("Allgemein", "General"),
     "sprache_abschnitt": ("SPRACHE", "LANGUAGE"),
 
     # ---- Einstellungen: Design ----
-    "modus": ("Modus", "Mode"),
+    "modus": ("MODUS", "MODE"),
     "dunkel": ("Dunkel", "Dark"),
     "hell": ("Hell", "Light"),
-    "farbe": ("Farbe", "Colour"),
+    "farbe": ("FARBE", "COLOUR"),
 
     # ---- Einstellungen: Steuerung ----
     "geschwindigkeit": ("Geschwindigkeit", "Speed"),
@@ -99,8 +102,9 @@ TEXTE = {
         "the same everywhere — and finer at the bottom than at the top, "
         "the way hearing expects it."),
     "steuerung_aktiv": ("Steuerung aktiv", "Control active"),
-    "scrollen_verwenden": ("Horizontales Scrollen verwenden",
-                           "Use horizontal scrolling"),
+    "regeln_mit": ("Regeln mit", "Control with"),
+    "daumenrad": ("Daumenrad", "Thumbwheel"),
+    "lautstaerke_tasten": ("Lautstärke-Tasten", "Volume keys"),
     "richtung_umkehren": ("Richtung umkehren", "Reverse direction"),
     "titel_taste": ("Titel per Mehrfachdruck wechseln",
                     "Change track by pressing twice"),
@@ -126,8 +130,15 @@ TEXTE = {
         "Works wherever the media keys work — Spotify, YouTube and the "
         "rest."),
     "mit_windows_starten": ("Mit Windows starten", "Start with Windows"),
-    "beim_wechsel": ("Beim Wechsel Gesamt ↔ App",
-                     "When switching master ↔ app"),
+    "beim_wechsel": ("BEIM WECHSEL GESAMT ↔ APP",
+                     "WHEN SWITCHING MASTER ↔ APP"),
+    "wechsel_frage": ("Was mit den Pegeln geschieht",
+                      "What happens to the levels"),
+    "eingabe": ("EINGABE", "INPUT"),
+    "medientasten": ("MEDIENTASTEN", "MEDIA KEYS"),
+    "im_fenster": ("IM FENSTER", "IN THE WINDOW"),
+    "einblendung": ("EINBLENDUNG", "ON-SCREEN DISPLAY"),
+    "system": ("SYSTEM", "SYSTEM"),
     "wechsel_none": ("Nichts ändern", "Change nothing"),
     "wechsel_carry": ("Pegel mitnehmen", "Carry level over"),
     "wechsel_apps100": ("Apps auf 100 %", "Apps to 100%"),

@@ -129,6 +129,10 @@ if sw:
 print("\n=== Schalter darf beim Klicken nicht wegwandern ===")
 # Der Fehler: die Animation hing an der Eigenschaft `pos` – das ist bei Qt
 # die Fensterposition. Statt des Knopfs wanderte das ganze Widget nach links.
+# Der Schalter sitzt im Bereich „Steuerung“; in einem versteckten Bereich
+# haette er keine verlaessliche Position.
+f._bereich_zeigen(f.bereich_nr("steuerung"))
+app.processEvents()
 sw = schalter_finden("Steuerung aktiv")
 if sw:
     import time

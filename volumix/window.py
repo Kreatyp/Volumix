@@ -5,7 +5,7 @@ import functools
 
 from PySide6.QtCore import (Property, QEasingCurve, QPropertyAnimation, QSize,
                             Qt, QTimer, Signal)
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtGui import QAction, QFontMetricsF, QIcon
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QDialog, QFrame,
                                QGraphicsOpacityEffect, QHBoxLayout, QLabel,
                                QLineEdit, QMenu, QPushButton, QScrollArea,
@@ -19,7 +19,7 @@ from .hooks import InputHook
 from .osd import Osd
 from . import sprache
 from .sprache import SPRACHEN, T
-from .theme import PALETTE, Theme
+from .theme import PALETTE, Theme, mix
 from .widgets import (FadeScroll, Flaeche, MixerRow, Slider,
                       ToggleSwitch)
 
@@ -163,6 +163,107 @@ class _ProfilPunkte(QWidget):
                           h / 2.0, h / 2.0)
 
 
+class _Reiter(QWidget):
+    """Bereichswahl in den Einstellungen.
+
+    Keine Kaesten, keine Rahmen: nur die Beschriftungen, die gewaehlte
+    hervorgehoben, darunter eine Linie, die zur neuen Stelle faehrt statt zu
+    springen. Dieselbe Bewegung wie bei den Profilpunkten – so fuehlt sich
+    beides nach demselben Programm an.
+    """
+
+    gewechselt = Signal(int)
+    HOEHE = 42
+
+    def __init__(self, namen, theme, parent=None):
+        super().__init__(parent)
+        self.namen = list(namen)
+        self.theme = theme
+        self.aktiv = 0
+        self._stelle = 0.0
+        self._hover = -1
+        self.setFixedHeight(self.HOEHE)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setAttribute(Qt.WA_Hover, True)
+        self._fahrt = QPropertyAnimation(self, b"stelle", self)
+        self._fahrt.setDuration(220)
+        self._fahrt.setEasingCurve(QEasingCurve.OutCubic)
+
+    def get_stelle(self):
+        return self._stelle
+
+    def set_stelle(self, wert):
+        self._stelle = wert
+        self.update()
+
+    stelle = Property(float, get_stelle, set_stelle)
+
+    def waehlen(self, nr, melden=True):
+        nr = max(0, min(len(self.namen) - 1, int(nr)))
+        if nr == self.aktiv:
+            return
+        self.aktiv = nr
+        self._fahrt.stop()
+        self._fahrt.setStartValue(self._stelle)
+        self._fahrt.setEndValue(float(nr))
+        self._fahrt.start()
+        if melden:
+            self.gewechselt.emit(nr)
+
+    def _feld(self, x):
+        breite = self.width() / max(1, len(self.namen))
+        return int(max(0, min(len(self.namen) - 1, x // breite)))
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self.waehlen(self._feld(e.position().x()))
+
+    def mouseMoveEvent(self, e):
+        neu = self._feld(e.position().x())
+        if neu != self._hover:
+            self._hover = neu
+            self.update()
+
+    def leaveEvent(self, e):
+        self._hover = -1
+        self.update()
+
+    def paintEvent(self, e):
+        from PySide6.QtGui import QColor, QFont, QPainter
+        from PySide6.QtCore import QRectF
+        t = self.theme
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setRenderHint(QPainter.TextAntialiasing, True)
+        breite = self.width() / max(1, len(self.namen))
+        for i, name in enumerate(self.namen):
+            f = QFont(self.font())
+            f.setPixelSize(13)
+            f.setWeight(QFont.Bold if i == self.aktiv else QFont.Medium)
+            p.setFont(f)
+            if i == self.aktiv:
+                p.setPen(QColor(t.fg))
+            elif i == self._hover:
+                p.setPen(QColor(mix(t.muted, t.fg, 0.5)))
+            else:
+                p.setPen(QColor(t.muted))
+            p.drawText(QRectF(i * breite, 0, breite, self.HOEHE - 6),
+                       Qt.AlignCenter, name)
+        # Die Linie ist so breit wie ihre Beschriftung, nicht wie das Feld –
+        # sonst schwimmt sie bei kurzen Woertern in der Luft.
+        f = QFont(self.font())
+        f.setPixelSize(13)
+        f.setWeight(QFont.Bold)
+        mass = QFontMetricsF(f)
+        i = int(round(self._stelle))
+        wort = mass.horizontalAdvance(self.namen[i]) + 10
+        mitte = (self._stelle + 0.5) * breite
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(t.accent))
+        p.drawRoundedRect(QRectF(mitte - wort / 2.0, self.HOEHE - 3.0,
+                                 wort, 2.5), 1.25, 1.25)
+
+
 class _KlickZeile(QWidget):
     """Zeile, die als Ganzes anklickbar ist."""
 
@@ -178,21 +279,36 @@ class _KlickZeile(QWidget):
 
 
 class Karte(Flaeche):
-    """Panel mit Verlauf, Lichtkante und runden Ecken."""
+    """Panel mit Verlauf, Lichtkante und runden Ecken.
 
-    def __init__(self, theme, titel=None, parent=None):
+    `zusatz` kommt neben die Ueberschrift – dort steht das Fragezeichen, statt
+    eine eigene Zeile dafuer zu brauchen.
+    """
+
+    def __init__(self, theme, titel=None, zusatz=None, parent=None):
         super().__init__(theme, 16, parent)
         self.setObjectName("Karte")
         self.lay = QVBoxLayout(self)
         self.lay.setContentsMargins(18, 14, 18, 16)
         self.lay.setSpacing(10)
         if titel:
+            kopf = QHBoxLayout()
+            kopf.setSpacing(4)
             k = QLabel(titel)
             k.setObjectName("Ueberschrift")
-            self.lay.addWidget(k)
+            kopf.addWidget(k)
+            if zusatz is not None:
+                kopf.addWidget(zusatz)
+            kopf.addStretch(1)
+            self.lay.addLayout(kopf)
 
 
 class MainWindow(QWidget):
+    # Reihenfolge der Reiter in den Einstellungen. Wer sie umstellt, aendert
+    # nur diese Zeile – angesprochen werden die Bereiche ueber ihren Namen,
+    # nicht ueber ihre Stelle.
+    BEREICHE = ("allgemein", "design", "steuerung", "anzeige")
+
     apps_bereit = Signal(list)
     volume_bereit = Signal(str, int)
     meters_bereit = Signal(dict)
@@ -433,54 +549,99 @@ class MainWindow(QWidget):
                                           auf_karte=False)
         roll.verticalScrollBar().valueChanged.connect(self._einst_fade)
 
-        # --- Design ---
-        k = Karte(self.theme, T("design"))
-        zeile = QHBoxLayout()
-        zeile.setAlignment(Qt.AlignTop)
-        links = QVBoxLayout()
-        links.setSpacing(6)
-        links.setAlignment(Qt.AlignTop)
-        links.addWidget(QLabel(T("modus")))
-        modus = QHBoxLayout()
-        self.modus_gruppe = QButtonGroup(self)
-        for wert, name in (("dark", T("dunkel")), ("light", T("hell"))):
+        # Vier Bereiche statt einer langen Liste: Vorher standen sechzehn
+        # Zeilen untereinander, alle im selben Muster. Da fuehrt nichts das
+        # Auge, und man scrollt an dem vorbei, was man sucht.
+        self.reiter = _Reiter([T(n) for n in self.BEREICHE], self.theme)
+        self.reiter.gewechselt.connect(self._bereich_zeigen)
+        lay.insertWidget(1, self.reiter)
+
+        bauer = {"design": self._bereich_design,
+                 "steuerung": self._bereich_steuerung,
+                 "anzeige": self._bereich_anzeige,
+                 "allgemein": self._bereich_allgemein}
+        self._bereiche = [bauer[n]() for n in self.BEREICHE]
+        for w in self._bereiche:
+            ilay.addWidget(w)
+        nr = getattr(self, "_einst_bereich", 0)
+        self.reiter.aktiv = nr
+        self.reiter.set_stelle(float(nr))
+        for i, w in enumerate(self._bereiche):
+            w.setVisible(i == nr)
+        ilay.addStretch(1)
+        return seite
+
+    # ---- Die vier Bereiche ----------------------------------------------
+    def _bereich(self, *karten):
+        """Huelle um die Karten eines Bereichs."""
+        w = QWidget()
+        durchsichtig(w, "Bereich")
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(12)
+        for k in karten:
+            lay.addWidget(k)
+        return w
+
+    def _chipreihe(self, karte, werte, gewaehlt, rueckruf):
+        """Reihe sich gegenseitig ausschliessender Knoepfe."""
+        gruppe = QButtonGroup(self)
+        reihe = QHBoxLayout()
+        reihe.setSpacing(8)
+        for wert, name in werte:
             b = QPushButton(name)
             b.setObjectName("Chip")
             b.setCheckable(True)
             b.setCursor(Qt.PointingHandCursor)
-            b.setChecked(self.theme.mode == wert)
-            b.clicked.connect(functools.partial(self._modus_setzen, wert))
-            self.modus_gruppe.addButton(b)
-            modus.addWidget(b)
-        modus.addStretch(1)
-        links.addLayout(modus)
-        zeile.addLayout(links)
-        zeile.addStretch(1)
+            b.setChecked(wert == gewaehlt)
+            b.clicked.connect(functools.partial(rueckruf, wert))
+            gruppe.addButton(b)
+            reihe.addWidget(b)
+        reihe.addStretch(1)
+        karte.lay.addLayout(reihe)
+        return gruppe
 
-        rechts = QVBoxLayout()
-        rechts.setSpacing(6)
-        rechts.setAlignment(Qt.AlignTop)
-        rechts.addWidget(QLabel(T("farbe")))
-        raster = QVBoxLayout()
-        raster.setSpacing(6)
+    def _bereich_design(self):
+        # Modus und Farbe in einer Karte: zwei Karten mit je einer Zeile sind
+        # mehr Rahmen als Inhalt.
+        k = Karte(self.theme, T("modus"))
+        self.modus_gruppe = self._chipreihe(
+            k, (("dark", T("dunkel")), ("light", T("hell"))),
+            self.theme.mode, self._modus_setzen)
+
+        titel = QLabel(T("farbe"))
+        titel.setObjectName("Ueberschrift")
+        k.lay.addSpacing(6)
+        k.lay.addWidget(titel)
         self.farbknoepfe = {}
         for i in range(0, len(PALETTE), 6):
             r = QHBoxLayout()
-            r.setSpacing(7)
+            r.setSpacing(9)
             for key, name, dunkel, hell in PALETTE[i:i + 6]:
                 b = _Farbpunkt(key, self.theme, name)
                 b.clicked.connect(functools.partial(self._farbe_setzen, key))
                 self.farbknoepfe[key] = b
                 r.addWidget(b)
             r.addStretch(1)
-            raster.addLayout(r)
-        rechts.addLayout(raster)
-        zeile.addLayout(rechts)
-        k.lay.addLayout(zeile)
-        ilay.addWidget(k)
+            k.lay.addLayout(r)
+        return self._bereich(k)
 
-        # --- Steuerung ---
-        k = Karte(self.theme, T("steuerung"))
+    def _bereich_steuerung(self):
+        k = Karte(self.theme, T("eingabe"))
+        self.sw_aktiv = self._schalter_zeile(
+            k, T("steuerung_aktiv"), self.cfg["active"], self._aktiv_setzen)
+        # Frueher war das ein Schalter „Horizontales Scrollen verwenden“ –
+        # zwei Moeglichkeiten, von denen eine im Namen stand und die andere
+        # gar nicht. Als Auswahl sieht man beide.
+        k.lay.addWidget(QLabel(T("regeln_mit")))
+        self.eingabe_gruppe = self._chipreihe(
+            k, ((False, T("daumenrad")), (True, T("lautstaerke_tasten"))),
+            self.cfg["media_keys"], self._eingabe_setzen)
+        # Gilt fuer beide Eingabearten, deshalb nicht „Scrollrichtung“
+        self._schalter_zeile(
+            k, T("richtung_umkehren"), self.cfg["reverse"],
+            self._reverse_setzen)
+
         tempo_kopf = QHBoxLayout()
         tempo_kopf.setSpacing(4)
         tempo_kopf.addWidget(QLabel(T("geschwindigkeit")))
@@ -491,87 +652,74 @@ class MainWindow(QWidget):
         k.lay.addLayout(self._regler_zeile(
             "", self.cfg["speed"], 10, 100,
             self._tempo_setzen, self.tempo_wert, breite=0))
-        self.sw_aktiv = self._schalter_zeile(
-            k, T("steuerung_aktiv"), self.cfg["active"], self._aktiv_setzen)
+
+        m = Karte(self.theme, T("medientasten"))
         self._schalter_zeile(
-            k, T("scrollen_verwenden"), not self.cfg["media_keys"],
-            self._eingabe_setzen)
-        # Gilt fuer beide Eingabearten, deshalb nicht „Scrollrichtung“
-        self._schalter_zeile(
-            k, T("richtung_umkehren"), self.cfg["reverse"],
-            self._reverse_setzen)
-        self._schalter_zeile(
-            k, T("titel_taste"), self.cfg["titel_taste"],
+            m, T("titel_taste"), self.cfg["titel_taste"],
             self._titel_taste_setzen, hilfe=T("titel_hilfe"))
-        self._schalter_zeile(
-            k, T("mit_windows_starten"), config.get_autostart(),
-            lambda an: config.set_autostart(an))
 
-        wechsel = QHBoxLayout()
-        wechsel.addWidget(QLabel(T("beim_wechsel")))
         self.btn_hilfe = self._fragezeichen(T("wechsel_hilfe"))
-        wechsel.addWidget(self.btn_hilfe)
-        wechsel.addStretch(1)
-        k.lay.addLayout(wechsel)
-        chips = QHBoxLayout()
-        chips.setSpacing(8)
-        self.wechsel_gruppe = QButtonGroup(self)
-        for wert in SWITCH_MODES:
-            b = QPushButton(T("wechsel_" + wert))
-            b.setObjectName("Chip")
-            b.setCheckable(True)
-            b.setCursor(Qt.PointingHandCursor)
-            b.setChecked(self.cfg["switch_mode"] == wert)
-            b.clicked.connect(functools.partial(self._wechsel_setzen, wert))
-            self.wechsel_gruppe.addButton(b)
-            chips.addWidget(b)
-        chips.addStretch(1)
-        k.lay.addLayout(chips)
-        ilay.addWidget(k)
+        w = Karte(self.theme, T("beim_wechsel"), zusatz=self.btn_hilfe)
+        self.wechsel_gruppe = self._chipreihe(
+            w, [(v, T("wechsel_" + v)) for v in SWITCH_MODES],
+            self.cfg["switch_mode"], self._wechsel_setzen)
+        return self._bereich(k, m, w)
 
-        # --- Anzeige ---
-        k = Karte(self.theme, T("anzeige"))
+    def _bereich_anzeige(self):
+        k = Karte(self.theme, T("im_fenster"))
         self._schalter_zeile(
-            k, T("live_pegel"), self.cfg["meters"],
-            self._meter_setzen)
+            k, T("live_pegel"), self.cfg["meters"], self._meter_setzen)
+
+        o = Karte(self.theme, T("einblendung"))
         self._schalter_zeile(
-            k, T("osd_anzeigen"), self.cfg["osd_enabled"],
-            self._osd_setzen)
+            o, T("osd_anzeigen"), self.cfg["osd_enabled"], self._osd_setzen)
+        # Groesse und Ort gehoeren zur Einblendung. Ist sie aus, sind sie
+        # ohne Wirkung – dann sollen sie auch danach aussehen.
+        self.osd_teile = QWidget()
+        durchsichtig(self.osd_teile, "OsdTeile")
+        tlay = QVBoxLayout(self.osd_teile)
+        tlay.setContentsMargins(0, 0, 0, 0)
+        tlay.setSpacing(0)
         self.osd_groesse_wert = QLabel("{} %".format(self.cfg["osd_size"]))
-        k.lay.addLayout(self._regler_zeile(
+        tlay.addLayout(self._regler_zeile(
             T("groesse"), self.cfg["osd_size"], 10, 100, self._osd_groesse,
             self.osd_groesse_wert))
         # Die Mitte trifft man von Hand nie genau – dort rastet es ein.
         self.osd_x_wert = QLabel("{} %".format(self.cfg["osd_x"]))
-        k.lay.addLayout(self._regler_zeile(
+        tlay.addLayout(self._regler_zeile(
             T("position_waagerecht"), self.cfg["osd_x"], 0, 100, self._osd_x,
             self.osd_x_wert, rastpunkte=(50,)))
         self.osd_y_wert = QLabel("{} %".format(self.cfg["osd_y"]))
-        k.lay.addLayout(self._regler_zeile(
+        tlay.addLayout(self._regler_zeile(
             T("position_senkrecht"), self.cfg["osd_y"], 0, 100, self._osd_y,
             self.osd_y_wert, rastpunkte=(50,)))
-        ilay.addWidget(k)
+        self.osd_teile.setEnabled(self.cfg["osd_enabled"])
+        o.lay.addWidget(self.osd_teile)
+        return self._bereich(k, o)
 
-        # --- Sprache ---
+    def _bereich_allgemein(self):
         k = Karte(self.theme, T("sprache_abschnitt"))
-        sp = QHBoxLayout()
-        sp.setSpacing(8)
-        self.sprach_gruppe = QButtonGroup(self)
-        for kuerzel, name in SPRACHEN:
-            b = QPushButton(name)
-            b.setObjectName("Chip")
-            b.setCheckable(True)
-            b.setCursor(Qt.PointingHandCursor)
-            b.setChecked(self.cfg["sprache"] == kuerzel)
-            b.clicked.connect(functools.partial(self._sprache_setzen, kuerzel))
-            self.sprach_gruppe.addButton(b)
-            sp.addWidget(b)
-        sp.addStretch(1)
-        k.lay.addLayout(sp)
-        ilay.addWidget(k)
+        self.sprach_gruppe = self._chipreihe(
+            k, SPRACHEN, self.cfg["sprache"], self._sprache_setzen)
 
-        ilay.addStretch(1)
-        return seite
+        s = Karte(self.theme, T("system"))
+        self._schalter_zeile(
+            s, T("mit_windows_starten"), config.get_autostart(),
+            lambda an: config.set_autostart(an))
+        return self._bereich(k, s)
+
+    def bereich_nr(self, name):
+        """Stelle eines Bereichs – Aufrufer muessen die Reihenfolge nicht
+        kennen, nur den Namen."""
+        return self.BEREICHE.index(name)
+
+    def _bereich_zeigen(self, nr):
+        self._einst_bereich = nr
+        for i, w in enumerate(self._bereiche):
+            w.setVisible(i == nr)
+        self._einblenden(self._bereiche[nr], 150)
+        self._einst_roll.verticalScrollBar().setValue(0)
+        QTimer.singleShot(0, functools.partial(self._einst_hoehe, True))
 
     def _regler_zeile(self, text, wert, lo, hi, rueckruf, anzeige,
                       rastpunkte=(), breite=160):
@@ -830,10 +978,21 @@ class MainWindow(QWidget):
         QTimer.singleShot(0, self._fade)
         QTimer.singleShot(0, self._hoehe_anpassen)
 
-    def _einst_hoehe(self):
+    def get_fensterhoehe(self):
+        return float(self.height())
+
+    def set_fensterhoehe(self, wert):
+        self.resize(self.width(), int(round(wert)))
+
+    fensterhoehe = Property(float, get_fensterhoehe, set_fensterhoehe)
+
+    def _einst_hoehe(self, fahren=False):
         """Einstellungen so hoch wie noetig – und nicht hoeher.
 
-        Ohne Obergrenze liesse sich das Fenster ins Leere ziehen.
+        Ohne Obergrenze liesse sich das Fenster ins Leere ziehen. Beim
+        Wechsel des Bereichs (`fahren`) gleitet die Hoehe, statt zu springen:
+        Die Bereiche sind unterschiedlich lang, und ein Fenster, das jedes
+        Mal aufblitzt, wirkt hektisch.
         """
         if not self.einst_seite.isVisible():
             return
@@ -841,9 +1000,32 @@ class MainWindow(QWidget):
         rest = self.height() - self._einst_roll.viewport().height()
         gewuenscht = inhalt + rest + 8
         platz = self.screen().availableGeometry().height() - 70
-        hoechstens = max(400, min(platz, gewuenscht))
+        # Untergrenze ist die Mindesthoehe des Fensters selbst – tiefer waere
+        # sinnlos und liesse Deckel und Boden gegeneinander laufen. Seit die
+        # Einstellungen in Bereiche geteilt sind, braucht „Design“ kaum Platz;
+        # eine hoehere Grenze liesse darunter nur eine leere Flaeche stehen.
+        hoechstens = max(self.minimumHeight(), min(platz, gewuenscht))
         self.setMaximumHeight(hoechstens)
-        self.resize(self.width(), hoechstens)
+        if fahren and abs(self.height() - hoechstens) > 4:
+            anim = getattr(self, "_hoehe_anim", None)
+            if anim is None:
+                anim = QPropertyAnimation(self, b"fensterhoehe", self)
+                anim.setDuration(190)
+                anim.setEasingCurve(QEasingCurve.OutCubic)
+                anim.finished.connect(functools.partial(
+                    self._einst_roll.setVerticalScrollBarPolicy,
+                    Qt.ScrollBarAsNeeded))
+                self._hoehe_anim = anim
+            # Waehrend das Fenster noch schrumpft, passt der Inhalt kurz nicht
+            # hinein – die Bildlaufleiste blitzt auf und schiebt alles um ihre
+            # Breite zur Seite. Deshalb ist sie fuer die Dauer der Fahrt weg.
+            self._einst_roll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            anim.stop()
+            anim.setStartValue(float(self.height()))
+            anim.setEndValue(float(hoechstens))
+            anim.start()
+        else:
+            self.resize(self.width(), hoechstens)
         QTimer.singleShot(0, self._einst_fade)
 
     def _einst_fade(self):
@@ -1313,11 +1495,12 @@ class MainWindow(QWidget):
         self.hook.aktiv = an
         self._speichern()
 
-    def _eingabe_setzen(self, scrollen):
-        self.cfg["media_keys"] = not scrollen
-        self.hook.media_keys = not scrollen
+    def _eingabe_setzen(self, tasten):
+        """Womit geregelt wird – Daumenrad oder die Lautstaerke-Tasten."""
+        self.cfg["media_keys"] = tasten
+        self.hook.media_keys = tasten
         self.hook.start()
-        self._melden(T("rad_aktiv") if scrollen else T("tasten_aktiv"))
+        self._melden(T("tasten_aktiv") if tasten else T("rad_aktiv"))
         self._speichern()
 
     def _titel_taste_setzen(self, an):
@@ -1402,6 +1585,9 @@ class MainWindow(QWidget):
 
     def _osd_setzen(self, an):
         self.cfg["osd_enabled"] = an
+        teile = getattr(self, "osd_teile", None)
+        if teile is not None:
+            teile.setEnabled(an)
         self._speichern()
 
     def _osd_groesse(self, wert):

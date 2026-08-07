@@ -104,27 +104,30 @@ zweites Programm.
 
 Über das **Zahnrad oben rechts**, zurück über den **Pfeil oben links**.
 
+Die Einstellungen liegen in vier Bereichen, die oben umschaltbar sind:
+**Design · Steuerung · Anzeige · Allgemein**. Jeder passt ohne Scrollen ins
+Fenster, und das Fenster fährt beim Wechsel auf die passende Höhe.
+
 ### Design
 
 **Modus** (Dunkel/Hell) und **Farbe** (12 Akzentfarben) sind frei kombinierbar
 und wirken sofort. Schneller geht der Modus über das **Mond/Sonne-Symbol**.
 
-### Sprache
-
-**Deutsch** oder **English** – die Oberfläche baut sich beim Wechsel neu auf
-und ist sofort umgestellt.
-
 ### Steuerung
 
-- **Geschwindigkeit** (10–100 %) – wie weit eine Rastung regelt. Ein Wert
-  genügt für Gesamt und Apps, weil beide auf derselben Kurve liegen.
 - **Steuerung aktiv** – schaltet die Funktion an/aus (auch per Tray-Menü).
-- **Horizontales Scrollen verwenden** – an: das Daumenrad steuert die
-  Lautstärke. Aus: stattdessen die **Lautstärke-Tasten** der Tastatur.
+- **Regeln mit** – **Daumenrad** oder die **Lautstärke-Tasten** der Tastatur.
 - **Richtung umkehren** – falls „vorne = leiser" intuitiver ist. Gilt für
   Daumenrad **und** Lautstärke-Tasten.
+- **Geschwindigkeit** (10–100 %) – wie weit eine Rastung regelt. Ein Wert
+  genügt für Gesamt und Apps, weil beide auf derselben Kurve liegen.
 - **Titel per Mehrfachdruck wechseln** – siehe unten.
-- **Mit Windows starten** – legt einen Autostart-Eintrag an.
+
+### Allgemein
+
+**Sprache** (Deutsch oder English – die Oberfläche baut sich beim Wechsel neu
+auf und ist sofort umgestellt) und **Mit Windows starten**, das einen
+Autostart-Eintrag anlegt.
 
 #### Titel per Mehrfachdruck wechseln
 
@@ -200,8 +203,9 @@ eine eigene Einstellung braucht.
 ### Anzeige
 
 - **Live-Pegel neben den Reglern** – die Ausschlagbalken an/aus.
-- **Lautstärke-Einblendung anzeigen**, dazu **Größe** und **Position**.
-  Jede Änderung wird sofort als Vorschau eingeblendet.
+- **Lautstärke-Einblendung anzeigen**, dazu **Größe** und **Position**. Jede
+  Änderung wird sofort als Vorschau eingeblendet. Ist die Einblendung aus,
+  sind die drei Regler ausgegraut – sie hätten dann nichts zu tun.
 
 ### Sichtbare Apps
 
