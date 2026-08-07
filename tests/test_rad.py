@@ -122,11 +122,24 @@ if zeilen:
 
     print("\n=== Nach der Sperrzeit zaehlt die Wirklichkeit wieder ===")
     z._selbst_gestellt = time.monotonic() - 1.5      # Sperre abgelaufen
+    zwischen = []
+    z.regler.valueChanged.connect(lambda v: zwischen.append(v))
     z.aktualisieren({"key": z.key, "name": z._name_text, "volume": 0.30,
                      "exe": z._exe, "muted": False})
     app.processEvents()
+    # Werte von aussen gleiten, statt zu springen – direkt danach ist der
+    # Regler also noch unterwegs.
+    pruefe("gleitet, statt zu springen", z.regler.value() != 30,
+           "ist schon {}".format(z.regler.value()))
+    for _ in range(40):
+        app.processEvents()
+        time.sleep(0.01)
     pruefe("Aenderung von aussen kommt an", z.regler.value() == 30,
            "ist {}".format(z.regler.value()))
+    pruefe("und zwar in mehreren Schritten", len(zwischen) > 3,
+           "{} Schritte".format(len(zwischen)))
+    pruefe("die Bewegung dauert nicht ewig",
+           z.regler.GLEITEN_MS <= 200, "{} ms".format(z.regler.GLEITEN_MS))
 
     print("\n=== Auch beim Ziehen mit der Maus ===")
     z.regler.setValue(70)

@@ -174,12 +174,16 @@ class Slider(QSlider):
 
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
+            self._anfassen()
             self.setValue(self._aus_maus(e))
             self.sliderMoved.emit(self.value())
             e.accept()
             self.setSliderDown(True)
             return
         super().mousePressEvent(e)
+
+    def _anfassen(self):
+        """Haken fuer Unterklassen – eine laufende Bewegung endet hier."""
 
     def mouseMoveEvent(self, e):
         if self.isSliderDown():
@@ -235,8 +239,33 @@ class VolumeSlider(Slider):
         self._wachsen = QPropertyAnimation(self, b"griff", self)
         self._wachsen.setDuration(140)
         self._wachsen.setEasingCurve(QEasingCurve.OutCubic)
+        self._gleiten = QPropertyAnimation(self, b"value", self)
+        self._gleiten.setDuration(self.GLEITEN_MS)
+        self._gleiten.setEasingCurve(QEasingCurve.OutCubic)
 
     SCHRITT = 4          # Prozentpunkte je Rastung
+    GLEITEN_MS = 130     # kurz genug, dass es nicht traege wirkt
+
+    def weich_setzen(self, wert):
+        """Werte von aussen gleiten lassen, statt sie springen zu lassen.
+
+        Gemeint sind Aenderungen, die woanders herkommen: Daumenrad,
+        Profilwechsel, der Abgleich im Takt, ein anderes Programm am
+        Windows-Mixer. Was der Nutzer hier selbst anfasst – ziehen, Rad ueber
+        dem Regler – muss dagegen sofort folgen, sonst haengt es am Gummiband.
+        """
+        wert = max(0, min(100, int(wert)))
+        self._gleiten.stop()
+        if abs(wert - self.value()) <= 1:
+            self.setValue(wert)         # ein Punkt sieht niemand fliegen
+            return
+        self._gleiten.setStartValue(self.value())
+        self._gleiten.setEndValue(wert)
+        self._gleiten.start()
+
+    def sofort_setzen(self, wert):
+        self._gleiten.stop()
+        self.setValue(int(wert))
 
     # Der Knopf waechst unter dem Zeiger. Kostet nichts und sagt vor dem
     # ersten Klick, dass man ihn anfassen kann.
@@ -266,6 +295,9 @@ class VolumeSlider(Slider):
         if not self.rect().contains(e.position().toPoint()):
             self._greifen(False)
 
+    def _anfassen(self):
+        self._gleiten.stop()
+
     def wheelEvent(self, e):
         """Rad ueber dem Regler regelt diese App.
 
@@ -282,7 +314,7 @@ class VolumeSlider(Slider):
         # „0 % und stumm“ per Rad nicht mehr heraus.
         neu = max(0, min(100, self.value() + int(round(rastungen * self.SCHRITT))))
         if neu != self.value():
-            self.setValue(neu)
+            self.sofort_setzen(neu)     # eigene Eingabe: ohne Nachlauf
             self.sliderMoved.emit(neu)
             self.sliderReleased.emit()
 
@@ -562,6 +594,10 @@ class MixerRow(QWidget):
         self.regler.setValue(int(round(item["volume"] * 100)))
         self.regler.sliderMoved.connect(self._geschoben)
         self.regler.sliderReleased.connect(self._losgelassen)
+        # Zahl und Lautsprecher haengen am Regler selbst, nicht am Zielwert –
+        # sonst stuenden sie schon auf dem neuen Wert, waehrend der Regler
+        # noch unterwegs ist.
+        self.regler.valueChanged.connect(self._wert_anzeigen)
         lay.addWidget(self.regler)
         lay.addSpacing(10)
 
@@ -636,6 +672,11 @@ class MixerRow(QWidget):
                                  stumm=self.muted))
         self.lautsprecher.setIconSize(QSize(20, 20))
 
+    def _wert_anzeigen(self, wert):
+        if not self.muted:
+            self.prozent.set_wert(wert)
+        self._lautsprecher_zeichnen()
+
     def _beschriften(self):
         if self.muted:
             self.prozent.set_text(T("stumm"))
@@ -682,10 +723,7 @@ class MixerRow(QWidget):
         neu = int(round(wert * 100))
         if neu == self.regler.value():
             return
-        self.regler.setValue(neu)
-        if not self.muted:
-            self.prozent.set_wert(neu)
-        self._lautsprecher_zeichnen()
+        self.regler.weich_setzen(neu)
 
     def set_muted(self, an):
         an = bool(an)
@@ -717,8 +755,6 @@ class MixerRow(QWidget):
     # ---- Maus ------------------------------------------------------------
     def _geschoben(self, wert):
         self._selbst_gestellt = time.monotonic()
-        self.prozent.set_wert(wert)
-        self._lautsprecher_zeichnen()
         self.volume_changed.emit(self.key, wert / 100.0, False)
 
     def _losgelassen(self):

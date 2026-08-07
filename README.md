@@ -65,6 +65,9 @@ entweder darüber oder in `absturz.log`.
 - **Live-Pegel:** Der helle Streifen im Schieberegler zeigt, was die App
   gerade wirklich ausgibt – mit einer Markierung, die kurz an der lautesten
   Stelle stehen bleibt. Abschaltbar unter *Einstellungen → Anzeige*.
+- Ändert sich ein Wert **von außen** – Daumenrad, Profilwechsel, ein anderes
+  Programm am Windows-Mixer –, gleitet der Regler dorthin, statt zu springen.
+  Was du selbst anfasst, folgt sofort.
 - **Mausrad direkt über einem Schieberegler** regelt genau diese App – ohne
   sie anzuhaken. Daneben scrollt es die Liste.
 - **Suchfeld:** Ab acht sichtbaren Apps erscheint über der Liste ein Suchfeld.
