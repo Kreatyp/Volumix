@@ -3,12 +3,24 @@
 Baut aus volumix.pyw eine .exe (PyInstaller).
 
 Aufruf:
-    python build_exe.py            -> Ordner dist\\Volumix\\ (startet schnell)
-    python build_exe.py --onefile  -> eine einzelne Datei (startet langsamer)
+    python build_exe.py            -> Ordner programm\\Volumix\\
+    python build_exe.py --onefile  -> eine einzelne Datei
 
-Qt bringt viel mit; als Einzeldatei muss das bei jedem Start entpackt werden.
-Deshalb ist der Ordner die Voreinstellung – die Datei `Volumix.exe` darin
-laesst sich ganz normal verknuepfen oder an die Taskleiste heften.
+Der Ordner ist die Voreinstellung, und dabei sollte es bleiben. Gemessen auf
+diesem Rechner, je drei Starts bis das Fenster steht:
+
+    Ordner        614 ms
+    Einzeldatei  1493 ms   und entpackt dabei 115 MB nach %TEMP%
+
+Qt bringt viel mit, und als Einzeldatei muss das bei *jedem* Start auf die
+Platte geschrieben werden – bei einem Programm, das mit Windows hochfaehrt
+und dann nur im Infobereich sitzt, ist das schlecht investierte Zeit. Dazu
+kommt die LGPL: Sie verlangt, dass sich Qt austauschen laesst. Im Ordner
+`_internal` liegen die DLLs einzeln, in einer Einzeldatei waeren sie
+einbetoniert.
+
+Die Datei `Volumix.exe` im Ordner laesst sich ganz normal verknuepfen oder an
+die Taskleiste heften; die Verknuepfung dafuer entsteht weiter unten.
 """
 import os
 import shutil
