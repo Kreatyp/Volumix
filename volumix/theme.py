@@ -1,10 +1,27 @@
 # -*- coding: utf-8 -*-
-"""Farben und Stilvorlage.
+"""Schrift, Farben und Stilvorlage.
 
 Anders als in der Tk-Fassung wird hier nichts gerendert: Qt bekommt eine
 Stilvorlage (QSS, an CSS angelehnt) und zeichnet Ecken, Verlaeufe und
 Hover-Zustaende selbst auf der Grafikkarte.
+
+Grundregel fuer die Flaechen: Was tiefer liegt, ist dunkler. Reglerschienen
+und leere Kaestchen sind Vertiefungen (`senke`), Karten und Knoepfe liegen
+darueber. Vorher war die Schiene heller als ihre Karte – sie sah dadurch
+erhaben aus, obwohl etwas darin laeuft.
 """
+import os
+
+from . import config
+
+# Mitgelieferte Schrift. Segoe UI liegt zwar auf jedem Windows, ist aber die
+# Systemschrift – eine App, die nichts einstellt, sieht damit aus wie jede
+# andere. Die Datei steht unter der SIL Open Font License, die das Weitergeben
+# ausdruecklich erlaubt (siehe LIZENZHINWEISE.md).
+SCHRIFT_DATEI = "PlusJakartaSans.ttf"
+SCHRIFT_ERSATZ = "Segoe UI Variable Text"
+
+_familie = None
 
 # (Schluessel, Anzeigename, dunkel, hell)
 PALETTE = [
@@ -23,17 +40,47 @@ PALETTE = [
 ]
 
 # Der Fensterhintergrund liegt bewusst deutlich unter der Karte – sonst
-# verschwindet der Verlauf im Untergrund und die Karte hat keine Kante.
+# verschwindet die Karte im Untergrund und hat keine Kante.
 DARK = {
-    "bg": "#0D0E12", "card": "#1E212A", "card2": "#2A2E39",
-    "stroke": "#383D4A", "fg": "#F2F4F8", "muted": "#8B93A7",
-    "knob": "#FFFFFF", "off": "#3A3F4B", "red": "#FF5C7C",
+    "bg": "#0B0C10", "card": "#171A21", "card2": "#22262F",
+    "senke": "#0E1016", "stroke": "#262B35", "fg": "#EDEFF5",
+    "muted": "#868E9F", "knob": "#FFFFFF", "off": "#2B303A",
+    "red": "#FF5C7C",
 }
 LIGHT = {
-    "bg": "#E4E7ED", "card": "#FFFFFF", "card2": "#E7EAF0",
-    "stroke": "#CBD1DC", "fg": "#12151C", "muted": "#5A6272",
-    "knob": "#FFFFFF", "off": "#BFC6D2", "red": "#DC2626",
+    "bg": "#E8EBF0", "card": "#FFFFFF", "card2": "#F1F3F7",
+    "senke": "#DFE3EA", "stroke": "#D5DAE3", "fg": "#12151C",
+    "muted": "#5A6272", "knob": "#FFFFFF", "off": "#C6CCD7",
+    "red": "#DC2626",
 }
+
+
+def schrift():
+    """Die mitgelieferte Schrift anmelden und ihren Familiennamen liefern.
+
+    Faellt auf die Systemschrift zurueck, falls die Datei einmal fehlt – die
+    App soll daran nicht scheitern.
+    """
+    global _familie
+    if _familie is not None:
+        return _familie
+    from PySide6.QtGui import QGuiApplication
+    if QGuiApplication.instance() is None:
+        # Schriften anmelden geht erst, wenn Qt steht – vorher stuerzt es ab.
+        # Das Ergebnis hier NICHT merken, sonst bliebe es beim Ersatz.
+        return SCHRIFT_ERSATZ
+    _familie = SCHRIFT_ERSATZ
+    pfad = config.paket_pfad("fonts", SCHRIFT_DATEI)
+    if os.path.exists(pfad):
+        try:
+            from PySide6.QtGui import QFontDatabase
+            kennung = QFontDatabase.addApplicationFont(pfad)
+            namen = QFontDatabase.applicationFontFamilies(kennung)
+            if namen:
+                _familie = namen[0]
+        except Exception:
+            pass
+    return _familie
 
 
 def _rgb(c):
@@ -54,6 +101,12 @@ def shift(farbe, faktor):
         *(max(0, min(255, int(round(k * faktor)))) for k in _rgb(farbe)))
 
 
+def rgba(farbe, deckkraft):
+    """Als rgba() fuer die Stilvorlage – Qt kennt kein #RRGGBBAA."""
+    r, g, b = _rgb(farbe)
+    return "rgba({}, {}, {}, {})".format(r, g, b, round(deckkraft, 3))
+
+
 class Theme:
     """Aktuelle Farbwelt – Modus plus Akzentfarbe."""
 
@@ -70,20 +123,27 @@ class Theme:
         farbe = next((p for p in PALETTE if p[0] == accent), PALETTE[0])
         self.accent = farbe[3] if self.hell else farbe[2]
         self.accent_hover = shift(self.accent, 0.88 if self.hell else 1.14)
-        # Karten bekommen einen sichtbaren Verlauf. Im hellen Modus faellt ein
-        # Farbstich sofort auf – dort deshalb sparsam und mit neutralem Grau
-        # statt Blau abdunkeln, sonst wirkt die Flaeche schmutzig.
+        # Gedaempfter Akzent fuer grosse Flaechen: die volle Farbe ist als
+        # Hintergrund zu laut, sie gehoert auf Regler und Haken.
+        self.accent_leise = mix(self.card, self.accent, 0.18 if not self.hell
+                                else 0.13)
+        # Karten bekommen einen ganz leichten Verlauf plus eine helle Kante an
+        # der Oberkante – gezeichnet wird beides in widgets.Flaeche.
         if self.hell:
             self.card_top = "#FFFFFF"
-            self.card_bottom = mix(self.card, "#9AA3B2", 0.13)
+            self.card_bottom = mix(self.card, "#9AA3B2", 0.09)
+            self.kante = (255, 255, 255, 235)
         else:
-            self.card_top = mix(self.card, self.accent, 0.08)
-            self.card_bottom = mix(self.card, "#000000", 0.30)
-        self.row_sel_top = mix(self.card2, self.accent, 0.20 if not self.hell else 0.14)
-        self.row_sel_bottom = mix(self.card2, self.accent, 0.05)
-        self.row_sel_hover = mix(self.card2, self.accent, 0.28 if not self.hell else 0.20)
-        self.row_hover_top = mix(self.card2, self.fg, 0.10 if not self.hell else 0.05)
-        self.row_hover_bottom = mix(self.card2, self.fg, 0.02)
+            self.card_top = mix(self.card, self.accent, 0.05)
+            self.card_bottom = mix(self.card, "#000000", 0.13)
+            self.kante = (255, 255, 255, 18)
+        # Zeilen: die Auswahl traegt einen Akzentbalken am linken Rand, die
+        # Flaeche selbst hebt sich nur leicht ab. Frueher war sie kraeftig
+        # eingefaerbt – bei mehreren gewaehlten Apps wurde die Liste bunt.
+        self.row_hover = mix(self.card, self.fg, 0.055 if not self.hell else 0.05)
+        self.row_sel = mix(self.card, self.accent, 0.11 if not self.hell else 0.09)
+        self.row_sel_hover = mix(self.card, self.accent,
+                                 0.16 if not self.hell else 0.14)
 
     def accent_of(self, key):
         farbe = next((p for p in PALETTE if p[0] == key), PALETTE[0])
@@ -92,48 +152,46 @@ class Theme:
     # ---- Stilvorlage -----------------------------------------------------
     def qss(self):
         t = self
+        f = schrift()
         return f"""
         QWidget {{
             color: {t.fg};
-            font-family: "Segoe UI";
+            font-family: "{f}", "Segoe UI";
             font-size: 13px;
+            font-weight: 500;
         }}
         #Fenster {{ background: {t.bg}; }}
 
-        /* Karten: Verlauf und runde Ecken – in Tk waren das gerenderte Bilder */
-        #Karte {{
-            border-radius: 16px;
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                        stop:0 {t.card_top}, stop:1 {t.card_bottom});
-        }}
-        #Leiste, #Profilleiste {{
-            border-radius: 12px;
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                        stop:0 {t.card_top}, stop:1 {t.card_bottom});
-        }}
+        /* Karte, Leiste und Profilleiste zeichnen sich selbst –
+           siehe widgets.Flaeche. Hier stehen nur die Schriften. */
         #Ueberschrift {{
-            color: {t.muted};
-            font-size: 11px;
-            font-weight: 600;
-            letter-spacing: 1px;
+            color: {mix(t.muted, t.bg, 0.15)};
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1.6px;
         }}
-        /* Die Wortmarke ist ein Bild – siehe icons.wortmarke() */
-        #Titel {{ font-size: 20px; font-weight: 600; }}
+        #Titel {{ font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }}
+        /* Die Wortmarke war frueher ein Bild in einer Deko-Schrift. Neben
+           dem uebrigen Satz sah das aus wie zwei verschiedene Programme. */
+        #Wortmarke {{
+            font-size: 27px;
+            font-weight: 800;
+            letter-spacing: -0.4px;
+        }}
         #DialogTitel {{
-            font-family: "Segoe UI Variable Display", "Segoe UI Semibold",
-                         "Segoe UI";
-            font-size: 17px;
-            font-weight: 600;
-            letter-spacing: 2.2px;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.6px;
         }}
-        #Abdunklung {{ background: rgba(0, 0, 0, 110); }}
+        #Abdunklung {{ background: rgba(0, 0, 0, 120); }}
         #Untertitel {{
             color: {t.muted};
-            font-size: 11px;
-            letter-spacing: 1.4px;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
         }}
-        #Hinweis {{ color: {t.muted}; font-size: 12px; }}
-        #Trennlinie {{ background: {t.stroke}; border: none; }}
+        #Hinweis {{ color: {t.muted}; font-size: 12px; font-weight: 500; }}
+        #Trennlinie {{ background: {mix(t.card, t.fg, 0.10)}; border: none; }}
 
         /* Profilleiste: Der Name ist ein Eingabefeld, sieht aber aus wie Text.
            Erst beim Anklicken zeigt sich, dass man darin schreiben kann. */
@@ -141,87 +199,91 @@ class Theme:
             background: transparent;
             border: 1px solid transparent;
             border-radius: 9px;
-            padding: 5px 10px;
-            font-size: 14px;
-            font-weight: 600;
-            letter-spacing: 0.4px;
+            padding: 4px 10px;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: -0.1px;
             color: {t.fg};
             selection-background-color: {t.accent};
         }}
         QLineEdit#Profilname:hover {{ background: {t.card2}; }}
         QLineEdit#Profilname:focus {{
-            background: {t.card2};
-            border-color: {t.accent};
+            background: {t.senke};
+            border-color: {rgba(t.accent, 0.55)};
         }}
 
-        /* Mixer-Zeile – Hover und Auswahl bekommen je einen eigenen Verlauf */
-        #Zeile {{ border-radius: 12px; background: transparent; }}
-        #Zeile[hover="true"] {{
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                        stop:0 {t.row_hover_top}, stop:1 {t.row_hover_bottom});
+        /* Mixer-Zeile: Hintergrund und Auswahlbalken zeichnet MixerRow
+           selbst, damit der Balken einfahren kann. */
+        /* Der Unterschied liegt nicht nur im Gewicht: 500 gegen 700 sieht man
+           bei 14 px kaum. Erst zusammen mit der Helligkeit tritt die
+           angehakte Zeile wirklich hervor. */
+        #Name {{
+            font-size: 14px;
+            font-weight: 500;
+            color: {mix(t.fg, t.muted, 0.30)};
         }}
-        #Zeile[gewaehlt="true"] {{
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                        stop:0 {t.row_sel_top}, stop:1 {t.row_sel_bottom});
+        #NameGewaehlt {{
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: -0.1px;
+            color: {t.fg};
         }}
-        #Zeile[gewaehlt="true"][hover="true"] {{
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                        stop:0 {t.row_sel_hover}, stop:1 {t.row_sel_bottom});
-        }}
-        #Name {{ font-size: 14px; }}
-        #Prozent {{ font-size: 15px; font-weight: 600; }}
-        #ProzentStumm {{ color: {t.muted}; font-size: 12px; }}
+        /* Zeile im App-Auswahldialog */
+        #DlgZeile {{ border-radius: 10px; background: transparent; }}
+        #DlgZeile[hover="true"] {{ background: {t.row_hover}; }}
 
         /* Knoepfe */
         QPushButton {{
             background: {t.card2};
             border: none;
-            border-radius: 9px;
-            padding: 7px 16px;
+            border-radius: 10px;
+            padding: 8px 16px;
             font-size: 12px;
             font-weight: 600;
         }}
-        QPushButton:hover {{ background: {t.stroke}; }}
+        QPushButton:hover {{ background: {mix(t.card2, t.fg, 0.10)}; }}
         QPushButton:pressed {{ background: {mix(t.card2, t.fg, 0.18)}; }}
         QPushButton#Betont {{ background: {t.accent}; color: #FFFFFF; }}
         QPushButton#Betont:hover {{ background: {t.accent_hover}; }}
         QPushButton#Rund {{
-            background: {t.card};
-            border-radius: 19px;
+            background: transparent;
+            border-radius: 22px;
             padding: 0px;
-            min-width: 38px; max-width: 38px;
-            min-height: 38px; max-height: 38px;
+            min-width: 44px; max-width: 44px;
+            min-height: 44px; max-height: 44px;
         }}
         QPushButton#Rund:hover {{ background: {t.card2}; }}
+        QPushButton#Rund:pressed {{ background: {mix(t.card2, t.fg, 0.10)}; }}
         QPushButton#Chip {{
-            background: {t.card2};
-            border-radius: 9px;
-            padding: 7px 14px;
-            font-weight: 500;
+            background: {t.senke};
+            border-radius: 10px;
+            padding: 8px 15px;
+            font-weight: 600;
         }}
-        QPushButton#Chip:hover {{ background: {t.stroke}; }}
+        QPushButton#Chip:hover {{ background: {mix(t.senke, t.fg, 0.10)}; }}
         QPushButton#Chip:checked {{ background: {t.accent}; color: #FFFFFF; }}
         QPushButton#Flach {{
             background: transparent;
             padding: 4px;
-            border-radius: 8px;
+            border-radius: 9px;
         }}
-        QPushButton#Flach:hover {{ background: {mix(t.card2, t.fg, 0.14)}; }}
+        QPushButton#Flach:hover {{ background: {mix(t.card, t.fg, 0.10)}; }}
 
-        /* Schieberegler */
+        /* Schieberegler (in den Einstellungen; der Lautstaerkeregler
+           zeichnet sich selbst) */
         QSlider::groove:horizontal {{
             height: 6px;
             border-radius: 3px;
-            background: {t.card2};
+            background: {t.senke};
         }}
         QSlider::sub-page:horizontal {{
             height: 6px;
             border-radius: 3px;
             background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                        stop:0 {mix(t.accent, '#FFFFFF', 0.3)}, stop:1 {t.accent});
+                        stop:0 {mix(t.accent, '#FFFFFF', 0.22)}, stop:1 {t.accent});
         }}
         QSlider::handle:horizontal {{
-            width: 15px; height: 15px;
+            width: 14px; height: 14px;
             margin: -5px 0;
             border-radius: 8px;
             background: {t.knob};
@@ -246,28 +308,30 @@ class Theme:
 
         /* Eingabefeld */
         QLineEdit {{
-            background: {t.card2};
+            background: {t.senke};
             border: 1px solid transparent;
             border-radius: 9px;
-            padding: 7px 12px;
+            padding: 6px 11px;
+            font-size: 12px;
             selection-background-color: {t.accent};
         }}
-        QLineEdit:focus {{ border-color: {t.accent}; }}
+        QLineEdit:focus {{ border-color: {rgba(t.accent, 0.55)}; }}
 
         /* Bildlaufleiste */
         QScrollArea {{ background: transparent; border: none; }}
         QScrollBar:vertical {{
             background: transparent;
-            width: 10px;
+            width: 12px;
             margin: 2px;
         }}
         QScrollBar::handle:vertical {{
-            background: {mix(t.card2, t.fg, 0.16 if t.hell else 0.28)};
-            border-radius: 4px;
-            min-height: 30px;
+            background: {mix(t.card, t.fg, 0.20 if t.hell else 0.24)};
+            border-radius: 3px;
+            min-height: 34px;
+            margin: 0px 2px;
         }}
         QScrollBar::handle:vertical:hover {{
-            background: {mix(t.card2, t.fg, 0.30 if t.hell else 0.42)};
+            background: {mix(t.card, t.fg, 0.34 if t.hell else 0.40)};
         }}
         QScrollBar::add-line, QScrollBar::sub-line,
         QScrollBar::add-page, QScrollBar::sub-page {{
@@ -275,12 +339,12 @@ class Theme:
         }}
 
         QToolTip {{
-            background: {mix(t.card2, t.fg, 0.06)};
+            background: {mix(t.card, t.fg, 0.07)};
             color: {t.fg};
             border: 1px solid {t.stroke};
-            border-radius: 8px;
+            border-radius: 9px;
             padding: 9px 12px;
             font-size: 12px;
+            font-weight: 500;
         }}
         """
-

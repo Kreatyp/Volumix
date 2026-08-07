@@ -140,70 +140,33 @@ def _render(svg, groesse, dpr):
 
 
 def app_logo(groesse, farbe, dpr=1.0):
-    """Programmsymbol von Volumix: abgerundetes Quadrat mit Lautsprecher."""
+    """Programmsymbol: ein runder Knopf mit zwei Regelwegen.
+
+    Zwei Bahnen mit Knoepfen an verschiedenen Stellen – genau das, was das
+    Programm macht: mehrere Lautstaerken, unabhaengig voneinander. Die runde
+    Grundform ist Absicht; in der Taskleiste steht sonst ein abgerundetes
+    Quadrat neben zwanzig anderen abgerundeten Quadraten.
+
+    Bewusst grob gehalten: bei 16 px zerfaellt jedes feinere Motiv.
+    """
     schluessel = ("logo", groesse, farbe, round(dpr, 2))
     fertig = _svg_cache.get(schluessel)
     if fertig is not None:
         return fertig
-    # Zwei Fader statt eines Lautsprechers: Das Programm ist ein Mischpult,
-    # und in der Taskleiste steht es sonst neben lauter aehnlichen Symbolen.
-    # Bewusst grob gehalten – bei 16 px zerfaellt jedes feinere Motiv.
     heller = QColor(farbe).lighter(122).name()
     svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">'
            '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">'
            '<stop offset="0" stop-color="{h}"/><stop offset="1" stop-color="{f}"/>'
            '</linearGradient></defs>'
-           '<rect x="1" y="1" width="46" height="46" rx="13" fill="url(#g)"/>'
-           '<rect x="14.1" y="10" width="4.2" height="28" rx="2.1"'
-           ' fill="#FFFFFF" opacity="0.45"/>'
-           '<rect x="29.7" y="10" width="4.2" height="28" rx="2.1"'
-           ' fill="#FFFFFF" opacity="0.45"/>'
-           '<rect x="9" y="25" width="14.4" height="6.4" rx="3.2"'
-           ' fill="#FFFFFF"/>'
-           '<rect x="24.6" y="14" width="14.4" height="6.4" rx="3.2"'
-           ' fill="#FFFFFF"/>'
+           '<circle cx="24" cy="24" r="23" fill="url(#g)"/>'
+           '<rect x="9" y="14" width="30" height="6" rx="3"'
+           ' fill="#FFFFFF" opacity="0.3"/>'
+           '<circle cx="17" cy="17" r="6.5" fill="#FFFFFF" opacity="0.55"/>'
+           '<rect x="9" y="28" width="30" height="6" rx="3"'
+           ' fill="#FFFFFF" opacity="0.3"/>'
+           '<circle cx="31" cy="31" r="6.5" fill="#FFFFFF"/>'
            '</svg>').format(h=heller, f=farbe)
     pm = _render(svg, groesse, dpr)
-    _svg_cache[schluessel] = pm
-    return pm
-
-
-_wortmarke_quelle = None
-
-
-def wortmarke(hoehe, farbe, dpr=1.0):
-    """Der Schriftzug „VOLUMIX“ als eingefaerbtes Bild.
-
-    Frueher war das echte Schrift im Fenster. Die Schriftdatei liegt aber
-    lesbar im Programmpaket, und ihre Lizenz (Chequered Ink) erlaubt zwar die
-    Verwendung in Grafiken, nicht aber die Weitergabe der Schrift selbst.
-    Als fertiges Bild kann sie niemand herausloesen – und es sieht genauso aus.
-    """
-    global _wortmarke_quelle
-    schluessel = ("marke", hoehe, farbe, round(dpr, 2))
-    fertig = _svg_cache.get(schluessel)
-    if fertig is not None:
-        return fertig
-    if _wortmarke_quelle is None:
-        import os
-        import sys
-        if getattr(sys, "_MEIPASS", None):        # in der gepackten .exe
-            wurzel = os.path.join(sys._MEIPASS, "volumix")
-        else:
-            wurzel = os.path.dirname(os.path.abspath(__file__))
-        _wortmarke_quelle = QPixmap(os.path.join(wurzel, "fonts",
-                                                 "wortmarke.png"))
-    quelle = _wortmarke_quelle
-    if quelle.isNull():
-        return QPixmap()
-    ziel_h = max(1, int(round(hoehe * dpr)))
-    pm = quelle.scaledToHeight(ziel_h, Qt.SmoothTransformation)
-    # Das Bild ist weiss auf durchsichtig – hier bekommt es seine Farbe
-    p = QPainter(pm)
-    p.setCompositionMode(QPainter.CompositionMode_SourceIn)
-    p.fillRect(pm.rect(), QColor(farbe))
-    p.end()
-    pm.setDevicePixelRatio(dpr)
     _svg_cache[schluessel] = pm
     return pm
 

@@ -102,6 +102,29 @@ TEXTE = {
     "scrollen_verwenden": ("Horizontales Scrollen verwenden",
                            "Use horizontal scrolling"),
     "richtung_umkehren": ("Richtung umkehren", "Reverse direction"),
+    "titel_taste": ("Titel per Mehrfachdruck wechseln",
+                    "Change track by pressing twice"),
+    "titel_hilfe": (
+        "Belegt die Wiedergabe-Taste doppelt, so wie es Kopfhörer tun:\n\n"
+        "•  einmal drücken — Wiedergabe / Pause\n"
+        "•  zweimal — nächster Titel\n"
+        "•  dreimal — vorheriger Titel\n\n"
+        "Der Haken: Volumix muss nach dem ersten Druck kurz abwarten, ob "
+        "noch einer kommt. Solange das an ist, reagiert die Taste rund eine "
+        "Drittelsekunde später. Aus bleibt sie so schnell wie immer.\n\n"
+        "Wirkt überall, wo die Medientasten wirken — Spotify, YouTube und "
+        "der Rest.",
+        "Gives the play key a second and third meaning, the way earbuds do:"
+        "\n\n"
+        "•  press once — play / pause\n"
+        "•  twice — next track\n"
+        "•  three times — previous track\n\n"
+        "The catch: after the first press Volumix has to wait and see "
+        "whether another one follows. While this is on, the key responds "
+        "about a third of a second later. Off, it stays as quick as ever."
+        "\n\n"
+        "Works wherever the media keys work — Spotify, YouTube and the "
+        "rest."),
     "mit_windows_starten": ("Mit Windows starten", "Start with Windows"),
     "beim_wechsel": ("Beim Wechsel Gesamt ↔ App",
                      "When switching master ↔ app"),

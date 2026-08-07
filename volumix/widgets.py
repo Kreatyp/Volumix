@@ -8,14 +8,62 @@ import time
 
 from PySide6.QtCore import (Property, QEasingCurve, QPropertyAnimation, QRectF,
                             QSize, Qt, Signal)
-from PySide6.QtGui import (QColor, QLinearGradient, QPainter, QPainterPath,
-                           QPen)
-from PySide6.QtWidgets import (QHBoxLayout, QLabel, QPushButton, QSlider,
-                               QWidget)
+from PySide6.QtGui import (QBrush, QColor, QFont, QLinearGradient, QPainter,
+                           QPainterPath, QPen)
+from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QPushButton,
+                               QSlider, QWidget)
 
 from . import icons
 from .config import MASTER_KEY
 from .sprache import T
+from .theme import mix
+
+
+def flaeche_zeichnen(p, theme, rechteck, radius):
+    """Erhabene Flaeche: leichter Verlauf und eine feine Lichtkante oben.
+
+    Die Lichtkante ist der Unterschied zwischen „Rechteck in einem anderen
+    Grauton“ und einer Flaeche, die wirklich im Raum liegt. Ueber die
+    Stilvorlage geht das nicht – Qt zieht einen Rahmen rundherum, hier soll
+    er nach unten auslaufen, so wie Licht von oben faellt.
+    """
+    g = QLinearGradient(rechteck.left(), rechteck.top(),
+                        rechteck.left(), rechteck.bottom())
+    g.setColorAt(0.0, QColor(theme.card_top))
+    g.setColorAt(1.0, QColor(theme.card_bottom))
+    p.setPen(Qt.NoPen)
+    p.setBrush(g)
+    p.drawRoundedRect(rechteck, radius, radius)
+
+    licht = QColor(*theme.kante)
+    aus = QColor(licht)
+    aus.setAlpha(0)
+    saum = QLinearGradient(rechteck.left(), rechteck.top(), rechteck.left(),
+                           rechteck.top() + max(12.0, rechteck.height() * 0.55))
+    saum.setColorAt(0.0, licht)
+    saum.setColorAt(1.0, aus)
+    p.setBrush(Qt.NoBrush)
+    p.setPen(QPen(QBrush(saum), 1.0))
+    p.drawRoundedRect(rechteck, radius, radius)
+
+
+class Flaeche(QFrame):
+    """Karte, Leiste, Profilleiste – alle mit demselben Aufbau."""
+
+    def __init__(self, theme, radius=16, parent=None):
+        super().__init__(parent)
+        self.theme = theme
+        self.radius = radius
+
+    def paintEvent(self, e):
+        if self.theme is None:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        flaeche_zeichnen(p, self.theme,
+                         QRectF(0.5, 0.5, self.width() - 1.0,
+                                self.height() - 1.0),
+                         self.radius)
 
 
 def _verblassen(pm, deckkraft):
@@ -146,8 +194,14 @@ class Slider(QSlider):
             self.setSliderDown(False)
             self.sliderReleased.emit()
             e.accept()
+            self._losgelassen_aussehen(e)
             return
         super().mouseReleaseEvent(e)
+
+    def _losgelassen_aussehen(self, e):
+        """Haken fuer Unterklassen – der Lautstaerkeregler laesst hier den
+        Knopf wieder schrumpfen, wenn der Zeiger beim Loslassen woanders ist.
+        """
 
     def wheelEvent(self, e):
         """Das Mausrad hier NICHT verarbeiten, sondern weiterreichen.
@@ -175,9 +229,42 @@ class VolumeSlider(Slider):
         self._pegel = 0.0
         self._halten = 0.0
         self._spitze = 0.0     # Markierung, die kurz stehen bleibt
+        self._griff = 0.0      # 0 = ruhend, 1 = angefasst
         self.setFixedHeight(24)
+        self.setAttribute(Qt.WA_Hover, True)
+        self._wachsen = QPropertyAnimation(self, b"griff", self)
+        self._wachsen.setDuration(140)
+        self._wachsen.setEasingCurve(QEasingCurve.OutCubic)
 
     SCHRITT = 4          # Prozentpunkte je Rastung
+
+    # Der Knopf waechst unter dem Zeiger. Kostet nichts und sagt vor dem
+    # ersten Klick, dass man ihn anfassen kann.
+    def get_griff(self):
+        return self._griff
+
+    def set_griff(self, wert):
+        self._griff = wert
+        self.update()
+
+    griff = Property(float, get_griff, set_griff)
+
+    def _greifen(self, an):
+        self._wachsen.stop()
+        self._wachsen.setStartValue(self._griff)
+        self._wachsen.setEndValue(1.0 if an else 0.0)
+        self._wachsen.start()
+
+    def enterEvent(self, e):
+        self._greifen(True)
+
+    def leaveEvent(self, e):
+        if not self.isSliderDown():
+            self._greifen(False)
+
+    def _losgelassen_aussehen(self, e):
+        if not self.rect().contains(e.position().toPoint()):
+            self._greifen(False)
 
     def wheelEvent(self, e):
         """Rad ueber dem Regler regelt diese App.
@@ -220,16 +307,23 @@ class VolumeSlider(Slider):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
         h = 8              # etwas dicker: der Pegelstreifen braucht Flaeche
-        knopf = 15
+        knopf = 14.0 + 2.0 * self._griff
         y = (self.height() - h) / 2.0
         weg = self.width() - knopf                    # Laufweg des Knopfs
         anteil = self.value() / 100.0
         fuell_breite = knopf / 2.0 + weg * anteil
 
-        # Schiene
+        # Schiene – eine Vertiefung, deshalb dunkler als die Karte und mit
+        # einem angedeuteten Schatten an der oberen Innenkante.
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(t.card2))
+        p.setBrush(QColor(t.senke))
         p.drawRoundedRect(QRectF(0, y, self.width(), h), h / 2.0, h / 2.0)
+        schatten = QColor(0, 0, 0, 46 if not t.hell else 26)
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(schatten, 1.0))
+        p.drawRoundedRect(QRectF(0.5, y + 0.5, self.width() - 1.0, h - 1.0),
+                          (h - 1.0) / 2.0, (h - 1.0) / 2.0)
+        p.setPen(Qt.NoPen)
 
         # Fuellung bis zum eingestellten Wert
         if fuell_breite > h:
@@ -237,7 +331,7 @@ class VolumeSlider(Slider):
                 p.setBrush(QColor(t.off))
             else:
                 g = QLinearGradient(0, 0, fuell_breite, 0)
-                g.setColorAt(0.0, QColor(t.accent).lighter(128))
+                g.setColorAt(0.0, QColor(t.accent).lighter(122))
                 g.setColorAt(1.0, QColor(t.accent))
                 p.setBrush(g)
             p.drawRoundedRect(QRectF(0, y, fuell_breite, h), h / 2.0, h / 2.0)
@@ -248,14 +342,23 @@ class VolumeSlider(Slider):
         if self.meter_an and not self.muted and self._halten > 0.008:
             self._pegel_zeichnen(p, y, h, fuell_breite)
 
-        # Knopf
+        # Knopf. Der Schatten darunter ist aus drei Ringen mit fallender
+        # Deckkraft gebaut – QPainter kann nicht weichzeichnen, und ein
+        # harter Rand sieht aufgeklebt aus.
         kx = weg * anteil
+        mitte = QRectF(kx, (self.height() - knopf) / 2.0, knopf, knopf)
+        for i, deckung in enumerate((10, 18, 30) if not t.hell else (14, 22, 34)):
+            p.setBrush(Qt.NoBrush)
+            p.setPen(QPen(QColor(0, 0, 0, deckung), 1.0))
+            weite = 2.4 - i * 0.8
+            p.drawEllipse(mitte.adjusted(-weite, -weite + 0.4,
+                                         weite, weite + 0.8))
         p.setBrush(QColor(t.knob))
-        rand = QColor(t.stroke)
-        if t.hell:
-            rand = QColor(t.muted)
-        p.setPen(QPen(rand, 1))
-        p.drawEllipse(QRectF(kx, (self.height() - knopf) / 2.0, knopf, knopf))
+        # Im hellen Modus liegt ein weisser Knopf auf hellem Grund – ohne
+        # Kante verschwindet er, sobald er ueber die leere Schiene faehrt.
+        p.setPen(QPen(QColor(mix(t.stroke, t.fg, 0.3)), 1.0) if t.hell
+                 else Qt.NoPen)
+        p.drawEllipse(mitte.adjusted(0.5, 0.5, -0.5, -0.5) if t.hell else mitte)
 
     def _pegel_zeichnen(self, p, y, h, fuell_breite):
         """Aussteuerung als heller Streifen in der Reglerbahn.
@@ -288,6 +391,86 @@ class VolumeSlider(Slider):
                 p.setBrush(QColor(255, 255, 255, 210))
                 p.drawRoundedRect(QRectF(sx - 2.0, innen_y, 2.5, innen_h),
                                   1.2, 1.2)
+
+
+class Prozent(QWidget):
+    """Die Zahl rechts in der Mixer-Zeile.
+
+    Jede Ziffer bekommt eine feste Zelle. Ohne das wandert die Zahl beim
+    Regeln hin und her, weil die 1 schmaler ist als die 8 – bei einem Wert,
+    der sich staendig aendert, faellt genau das auf. Das Zeichen dahinter ist
+    kleiner und leiser: es aendert sich nie und muss nicht mitschreien.
+    """
+
+    LUFT = 3.0
+
+    def __init__(self, theme, parent=None):
+        super().__init__(parent)
+        self.theme = theme
+        self._wert = 0
+        self._text = ""            # gesetzt = statt der Zahl anzeigen
+        self.setFixedWidth(52)
+
+    def set_wert(self, wert):
+        wert = int(wert)
+        if wert != self._wert or self._text:
+            self._wert, self._text = wert, ""
+            self.update()
+
+    def set_text(self, text):
+        if text != self._text:
+            self._text = text
+            self.update()
+
+    def text(self):
+        """Was gerade zu lesen ist."""
+        return self._text or "{} %".format(self._wert)
+
+    def _schriften(self):
+        familie = self.font().family()
+        zahl = QFont(familie)
+        zahl.setPixelSize(16)
+        zahl.setWeight(QFont.Bold)
+        zeichen = QFont(familie)
+        zeichen.setPixelSize(11)
+        zeichen.setWeight(QFont.DemiBold)
+        return zahl, zeichen
+
+    def paintEvent(self, e):
+        t = self.theme
+        p = QPainter(self)
+        p.setRenderHint(QPainter.TextAntialiasing, True)
+        zahl_f, zeichen_f = self._schriften()
+        if self._text:
+            p.setFont(zeichen_f)
+            p.setPen(QColor(t.muted))
+            p.drawText(self.rect(), Qt.AlignRight | Qt.AlignVCenter, self._text)
+            return
+        ziffern = str(max(0, self._wert))
+        p.setFont(zahl_f)
+        mass = p.fontMetrics()
+        zelle = max(mass.horizontalAdvance(str(d)) for d in range(10))
+        p.setFont(zeichen_f)
+        zeichen_breite = p.fontMetrics().horizontalAdvance("%")
+        x = self.width() - (len(ziffern) * zelle + self.LUFT + zeichen_breite)
+        # Beide auf derselben Grundlinie: sonst schwebt das kleinere Zeichen
+        # neben der Zahl, statt mit ihr auf einer Linie zu stehen.
+        basis = (self.height() + mass.ascent() - mass.descent()) / 2.0
+
+        p.setFont(zahl_f)
+        p.setPen(QColor(t.fg))
+        for ziffer in ziffern:
+            versatz = (zelle - mass.horizontalAdvance(ziffer)) / 2.0
+            p.drawText(QRectF(x + versatz, basis - mass.ascent(),
+                              zelle, mass.height()),
+                       Qt.AlignLeft | Qt.AlignTop, ziffer)
+            x += zelle
+        p.setFont(zeichen_f)
+        klein = p.fontMetrics()
+        p.setPen(QColor(t.muted))
+        p.drawText(QRectF(x + self.LUFT, basis - klein.ascent(),
+                          zeichen_breite, klein.height()),
+                   Qt.AlignLeft | Qt.AlignTop, "%")
 
 
 class _ElidedLabel(QLabel):
@@ -325,16 +508,18 @@ class MixerRow(QWidget):
         self.theme = theme
         self.muted = bool(item.get("muted"))
         self._gewaehlt = bool(gewaehlt)
+        self._hover = False
         self._selbst_gestellt = 0.0   # Zeitpunkt eigener Eingabe
         self.setObjectName("Zeile")
         self.setCursor(Qt.PointingHandCursor)
         self.setAttribute(Qt.WA_Hover, True)
-        # Ohne das zeichnet Qt den Hintergrund aus der Stilvorlage gar nicht –
-        # dann bleiben Hover und Auswahl unsichtbar.
-        self.setAttribute(Qt.WA_StyledBackground, True)
-        self.setProperty("gewaehlt", self._gewaehlt)
-        self.setProperty("hover", False)
         self.setFixedHeight(54)
+        # Der Balken am linken Rand faehrt ein, statt zu erscheinen – das
+        # zeigt beilaeufig, welche Zeile gerade dazugekommen ist.
+        self._balken = 1.0 if self._gewaehlt else 0.0
+        self._fahrt = QPropertyAnimation(self, b"balken", self)
+        self._fahrt.setDuration(180)
+        self._fahrt.setEasingCurve(QEasingCurve.OutCubic)
 
         lay = QHBoxLayout(self)
         lay.setContentsMargins(14, 0, 14, 0)
@@ -356,7 +541,7 @@ class MixerRow(QWidget):
         lay.addSpacing(11)
 
         self.name = _ElidedLabel(item["name"])
-        self.name.setObjectName("Name")
+        self.name.setObjectName("NameGewaehlt" if self._gewaehlt else "Name")
         self.name.setMinimumWidth(50)
         lay.addWidget(self.name, 1)
         lay.addSpacing(10)
@@ -380,10 +565,7 @@ class MixerRow(QWidget):
         lay.addWidget(self.regler)
         lay.addSpacing(10)
 
-        self.prozent = QLabel()
-        self.prozent.setObjectName("Prozent")
-        self.prozent.setFixedWidth(52)
-        self.prozent.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.prozent = Prozent(theme)
         lay.addWidget(self.prozent)
 
         self._exe = item.get("exe")
@@ -392,6 +574,42 @@ class MixerRow(QWidget):
         self._beschriften()
 
     # ---- Aussehen --------------------------------------------------------
+    def get_balken(self):
+        return self._balken
+
+    def set_balken(self, wert):
+        self._balken = wert
+        self.update()
+
+    balken = Property(float, get_balken, set_balken)
+
+    def paintEvent(self, e):
+        """Hintergrund und Auswahlbalken.
+
+        Frueher kam beides aus der Stilvorlage. Die gewaehlte Zeile war dabei
+        kraeftig eingefaerbt – bei mehreren angehakten Apps wurde die Liste
+        bunt. Jetzt traegt ein schmaler Balken am linken Rand die Aussage, die
+        Flaeche hebt sich nur noch leicht ab.
+        """
+        t = self.theme
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        if self._gewaehlt:
+            grund = t.row_sel_hover if self._hover else t.row_sel
+        elif self._hover:
+            grund = t.row_hover
+        else:
+            grund = None
+        p.setPen(Qt.NoPen)
+        if grund:
+            p.setBrush(QColor(grund))
+            p.drawRoundedRect(QRectF(0, 0, self.width(), self.height()), 12, 12)
+        if self._balken > 0.01:
+            hoch = (self.height() - 20) * self._balken
+            p.setBrush(QColor(t.accent))
+            p.drawRoundedRect(
+                QRectF(0, (self.height() - hoch) / 2.0, 3.0, hoch), 1.5, 1.5)
+
     def symbol_setzen(self):
         dpr = self.devicePixelRatioF()
         pm = icons.exe_icon(self._exe, 32, dpr)
@@ -420,19 +638,18 @@ class MixerRow(QWidget):
 
     def _beschriften(self):
         if self.muted:
-            self.prozent.setObjectName("ProzentStumm")
-            self.prozent.setText(T("stumm"))
+            self.prozent.set_text(T("stumm"))
         else:
-            self.prozent.setObjectName("Prozent")
-            self.prozent.setText("{} %".format(self.regler.value()))
-        self.prozent.style().unpolish(self.prozent)
-        self.prozent.style().polish(self.prozent)
+            self.prozent.set_wert(self.regler.value())
 
     def theme_wechseln(self, theme):
         self.theme = theme
         self.box.theme = theme
         self.regler.theme = theme
+        self.prozent.theme = theme
         self.regler.update()
+        self.prozent.update()
+        self.update()
         self.symbol_setzen()
 
     # ---- Zustand ---------------------------------------------------------
@@ -442,9 +659,14 @@ class MixerRow(QWidget):
             return
         self._gewaehlt = an
         self.box.setChecked(an)
-        self.setProperty("gewaehlt", an)
-        self.style().unpolish(self)
-        self.style().polish(self)
+        self.name.setObjectName("NameGewaehlt" if an else "Name")
+        self.name.style().unpolish(self.name)
+        self.name.style().polish(self.name)
+        self._fahrt.stop()
+        self._fahrt.setStartValue(self._balken)
+        self._fahrt.setEndValue(1.0 if an else 0.0)
+        self._fahrt.start()
+        self.update()
 
     def set_volume(self, wert):
         """Wert von aussen uebernehmen (Refresh, Daumenrad).
@@ -462,7 +684,7 @@ class MixerRow(QWidget):
             return
         self.regler.setValue(neu)
         if not self.muted:
-            self.prozent.setText("{} %".format(neu))
+            self.prozent.set_wert(neu)
         self._lautsprecher_zeichnen()
 
     def set_muted(self, an):
@@ -495,7 +717,7 @@ class MixerRow(QWidget):
     # ---- Maus ------------------------------------------------------------
     def _geschoben(self, wert):
         self._selbst_gestellt = time.monotonic()
-        self.prozent.setText("{} %".format(wert))
+        self.prozent.set_wert(wert)
         self._lautsprecher_zeichnen()
         self.volume_changed.emit(self.key, wert / 100.0, False)
 
@@ -504,14 +726,12 @@ class MixerRow(QWidget):
         self.volume_changed.emit(self.key, self.regler.value() / 100.0, True)
 
     def enterEvent(self, e):
-        self.setProperty("hover", True)
-        self.style().unpolish(self)
-        self.style().polish(self)
+        self._hover = True
+        self.update()
 
     def leaveEvent(self, e):
-        self.setProperty("hover", False)
-        self.style().unpolish(self)
-        self.style().polish(self)
+        self._hover = False
+        self.update()
 
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:

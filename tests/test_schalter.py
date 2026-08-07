@@ -157,9 +157,22 @@ zeile_aus.deleteLater()
 
 print("\n=== Kopfzeile in den Einstellungen ===")
 pruefe("Kopfzeile ausgeblendet", f.kopfzeile.isVisible(), False)
+# Profile wechselt man im Mixer, nicht in den Einstellungen
+pruefe("Profilleiste ausgeblendet", f.profilleiste.isVisible(), False)
 f._seite(0)
 app.processEvents()
 pruefe("im Mixer wieder da", f.kopfzeile.isVisible(), True)
+pruefe("Profilleiste wieder da", f.profilleiste.isVisible(), True)
+
+print("\n=== Mitgelieferte Schrift ===")
+from volumix import theme as th                                 # noqa: E402
+pruefe("Schrift ist angemeldet", th.schrift() != th.SCHRIFT_ERSATZ,
+       True)
+pruefe("und wird in der Stilvorlage benutzt", th.schrift() in f.theme.qss(),
+       True)
+# Ohne Schriftdatei darf die App trotzdem starten – deshalb der Ersatz
+pruefe("Ersatz ist eine Windows-Schrift",
+       th.SCHRIFT_ERSATZ.startswith("Segoe"), True)
 
 print("\n{}".format("Alles gruen." if not fehler
                     else "{} Test(s) fehlgeschlagen!".format(fehler)))

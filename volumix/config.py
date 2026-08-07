@@ -24,6 +24,7 @@ DEFAULTS = {
     "reverse": False,
     "active": True,
     "media_keys": False,     # Lautstaerke-Tasten statt Daumenrad
+    "titel_taste": False,    # Mehrfachdruck auf Wiedergabe/Pause
     "switch_mode": "none",   # was beim Wechsel Gesamt <-> App passiert
     "meters": True,          # Live-Pegel neben den Reglern
     "osd_enabled": True,
@@ -80,6 +81,47 @@ def app_dir():
     if getattr(sys, "frozen", False):
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def paket_pfad(*teile):
+    """Pfad zu einer mitgelieferten Datei (Schrift, Bild).
+
+    In der gepackten .exe liegen die Daten in einem Ordner, den PyInstaller
+    beim Start entpackt; aus dem Quelltext heraus einfach neben den Modulen.
+    """
+    wurzel = getattr(sys, "_MEIPASS", None)
+    if wurzel:
+        return os.path.join(wurzel, "volumix", *teile)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), *teile)
+
+
+PROTOKOLL = "fehler.log"
+ABSTURZ = "absturz.log"
+PROTOKOLL_GRENZE = 200 * 1024        # darueber wird von vorn begonnen
+
+
+def protokoll_pfad(name=PROTOKOLL):
+    return os.path.join(CONFIG_DIR, name)
+
+
+def notiz(text):
+    """Eine Zeile ins Protokoll.
+
+    Damit laesst sich hinterher unterscheiden, ob die App beendet wurde oder
+    einfach verschwunden ist – ohne diese Spur ist beides nicht auseinander-
+    zuhalten, denn ein Programm im Infobereich schliesst sich lautlos.
+    """
+    import datetime
+    try:
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        pfad = protokoll_pfad()
+        if os.path.exists(pfad) and os.path.getsize(pfad) > PROTOKOLL_GRENZE:
+            os.remove(pfad)
+        with open(pfad, "a", encoding="utf-8") as f:
+            f.write("{}  {}\n".format(
+                datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S"), text))
+    except Exception:
+        pass
 
 
 def load():

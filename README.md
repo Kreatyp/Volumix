@@ -15,17 +15,43 @@ Fällen **völlig unberührt**.
 
 ## Starten
 
-Doppelklick auf **`programm\Volumix\Volumix.exe`**
+Doppelklick auf **`Volumix`** im Hauptordner – die Verknüpfung legt
+`build_exe.py` bei jedem Bau neu an.
+
+> Die `.exe` selbst liegt unter `programm\Volumix\`, und dort muss sie auch
+> bleiben: Daneben steht ein Ordner `_internal` mit Qt und allem Übrigen, ohne
+> den sie nicht startet.
 
 Die App braucht **kein installiertes Python**. Beim ersten Start kann
 Windows-SmartScreen einmal nachfragen („Weitere Informationen" → „Trotzdem
 ausführen"), weil die Datei nicht signiert ist.
 
-Volumix läuft dann im Hintergrund und legt ein **Lautsprecher-Symbol im
-Infobereich** ab (unten rechts neben der Uhr, ggf. auf den Pfeil `^` klicken).
+Volumix läuft dann im Hintergrund und legt sein **Symbol im Infobereich** ab
+(unten rechts neben der Uhr, ggf. auf den Pfeil `^` klicken).
 
-> Zum Ausprobieren von Änderungen am Quelltext: `Volumix starten.bat`.
+> Zum Ausprobieren von Änderungen am Quelltext: `werkzeug\Volumix starten.bat`.
 > Neu bauen: `python build_exe.py`.
+
+### Wenn sich die App wortlos schließt
+
+Ein Programm im Infobereich verschwindet lautlos, und ohne Konsole geht jede
+Meldung ins Nichts. Deshalb schreibt Volumix zwei Dateien nach
+`%APPDATA%\Volumix\`:
+
+| | |
+|---|---|
+| `fehler.log` | jeder Start, jedes Beenden, und jeder Fehler mit vollem Weg |
+| `absturz.log` | für Abstürze unterhalb von Python |
+
+Steht in `fehler.log` ein **„beendet"**, hat jemand die App über das Tray-Menü
+geschlossen. Fehlt es, ist sie von selbst gegangen — dann steht der Grund
+entweder darüber oder in `absturz.log`.
+
+> In `absturz.log` steht bei jedem Start eine Ausnahme `0x8001010D`. Die ist
+> normal: Windows wirft sie beim Anlegen eines Fensters, Qt fängt sie ab.
+> Nachgemessen — schon ein leeres Qt-Fenster ohne eine Zeile Volumix erzeugt
+> sie. Genau deshalb liegt sie in einer eigenen Datei und nicht in
+> `fehler.log`.
 
 ## Bedienen
 
@@ -48,9 +74,14 @@ Infobereich** ab (unten rechts neben der Uhr, ggf. auf den Pfeil `^` klicken).
 ## Profile
 
 Unter der Kopfzeile steht der Name des offenen Profils, links und rechts davon
-die Pfeile zum Wechseln. Das **+** legt ein neues an – es startet als Kopie des
-aktuellen, du gibst nur einen Namen ein. Ein Klick auf den Namen öffnet die
-Liste zum Springen, Umbenennen und Löschen.
+die Pfeile zum Wechseln – die **Pfeiltasten** tun dasselbe. Die Punkte darunter
+zeigen, wo du gerade stehst. Das **+** legt ein neues an; es startet als Kopie
+des aktuellen und der Name steht gleich zum Tippen bereit.
+
+Ein Klick auf den Namen schaltet ihn zum Ändern frei, daneben erscheint der
+Papierkorb. Bestätigt wird mit Klick daneben oder Enter, verworfen mit Escape.
+In den Einstellungen taucht die Leiste nicht auf – dort wechselt man keine
+Profile.
 
 **Einen Speichern-Knopf gibt es nicht.** Was du änderst, gehört ab sofort zum
 offenen Profil. Dazu zählen:
@@ -92,7 +123,30 @@ und ist sofort umgestellt.
   Lautstärke. Aus: stattdessen die **Lautstärke-Tasten** der Tastatur.
 - **Richtung umkehren** – falls „vorne = leiser" intuitiver ist. Gilt für
   Daumenrad **und** Lautstärke-Tasten.
+- **Titel per Mehrfachdruck wechseln** – siehe unten.
 - **Mit Windows starten** – legt einen Autostart-Eintrag an.
+
+#### Titel per Mehrfachdruck wechseln
+
+Gibt der **Wiedergabe-Taste** eine zweite und dritte Bedeutung, so wie es
+Kopfhörer tun:
+
+| | |
+|---|---|
+| einmal drücken | Wiedergabe / Pause |
+| zweimal | nächster Titel |
+| dreimal | vorheriger Titel |
+
+Das wirkt überall, wo die Medientasten wirken – Spotify, YouTube und der Rest.
+Auch dann, wenn keine App angehakt ist; mit der Lautstärkesteuerung hat es
+nichts zu tun.
+
+> **Der Haken:** Volumix muss nach dem ersten Druck rund eine Drittelsekunde
+> abwarten, ob noch einer kommt. Solange die Funktion an ist, reagiert die
+> Taste also verzögert. Deshalb ist sie ab Werk aus.
+
+Eine auf „Wiedergabe/Pause" belegte **Maustaste** funktioniert genauso – auch
+wenn Logi Options+ die Taste nur simuliert.
 
 #### Beim Wechsel Gesamt ↔ App
 
@@ -178,13 +232,14 @@ sie Tage später neu, ist sie wieder so eingestellt wie zuletzt.
 
 | | |
 |---|---|
-| `programm\Volumix\Volumix.exe` | die fertige App (kein Python nötig) |
+| `Volumix` | Verknüpfung zur fertigen App – der übliche Weg zum Starten |
 | `volumix.pyw` | Startpunkt des Quelltextes |
 | `volumix\` | die einzelnen Bausteine (siehe unten) |
-| `build_exe.py` | baut die App neu |
-| `tests\` | Testreihen, `Tests ausfuehren.bat` startet alle |
-| `Volumix starten.bat` | startet den Quelltext direkt |
-| `archiv-tk\` | die alte Tkinter-Fassung, falls sie nochmal gebraucht wird |
+| `build_exe.py` | baut die App neu, samt Symbol und Verknüpfung |
+| `tests\` | Testreihen, `werkzeug\Tests ausfuehren.bat` startet alle |
+| `werkzeug\` | Startdateien und eigene Notizen |
+| `docs\` | die Webseite (GitHub Pages) |
+| `programm\` | die gebaute App – entsteht aus dem Quelltext |
 | [`LIZENZHINWEISE.md`](LIZENZHINWEISE.md) | Lizenzen der mitgelieferten Bausteine |
 
 Der Quelltext ist in Bausteine geteilt, statt in einer einzigen großen Datei:
@@ -200,7 +255,7 @@ Der Quelltext ist in Bausteine geteilt, statt in einer einzigen großen Datei:
 | `volumix\window.py` | Hauptfenster, Einstellungen, Dialoge |
 | `volumix\hooks.py` | Daumenrad und Lautstärke-Tasten |
 | `volumix\sprache.py` | alle sichtbaren Texte, Deutsch und Englisch |
-| `volumix\fonts\` | die Wortmarke als Bild |
+| `volumix\fonts\` | die Schrift der Oberfläche samt Lizenztext |
 
 Einstellungen liegen in `%APPDATA%\Volumix\config.json`,
 der Autostart-Eintrag unter `HKCU\...\CurrentVersion\Run\Volumix`.

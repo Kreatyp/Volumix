@@ -74,10 +74,31 @@ pruefe("erreicht den Wert nach der Bewegung", abs(osd._gezeigt - 80.0) < 1.0,
 osd.hide()
 
 print("\n=== Schriftgroesse in der Einblendung ===")
-quelle = open(os.path.join(_PROJEKT, "volumix", "osd.py"),
-              encoding="utf-8").read()
-pruefe("Zahl deutlich groesser als vorher", 'QFont("Segoe UI", int(14 * f))'
-       in quelle)
+# Nicht im Quelltext nachsehen, sondern messen: die Zahl wird gezeichnet,
+# also faellt sie auch auf, wenn jemand die Schrift austauscht.
+osd.einstellen(45, 50, 88)
+osd.zeigen([("#master", None, "Gesamt")], 65)
+app.processEvents()
+abzug = osd.grab().toImage()
+
+
+def hoehe_der_zahl(img):
+    """Wie hoch ist der Bereich rechts, in dem etwas gezeichnet wurde?"""
+    links = int(img.width() * 0.78)
+    oben, unten = None, None
+    for y in range(img.height()):
+        for x in range(links, img.width()):
+            c = img.pixelColor(x, y)
+            if c.alpha() > 40 and c.lightness() > 150:
+                oben = y if oben is None else oben
+                unten = y
+                break
+    return (unten - oben + 1) if oben is not None else 0
+
+
+hoch = hoehe_der_zahl(abzug)
+pruefe("Zahl ist gross gesetzt", hoch >= 14, "Hoehe {} px".format(hoch))
+osd.hide()
 
 print("\n=== Blasses Symbol bei stumm ===")
 zeilen = list(f.rows.values())

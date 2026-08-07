@@ -19,19 +19,18 @@ Bibliotheken ersetzen — genau das verlangt die LGPL. Die vollständigen
 Lizenztexte stehen unter
 [gnu.org/licenses/lgpl-3.0](https://www.gnu.org/licenses/lgpl-3.0.html).
 
-## Schrift der Wortmarke
+## Schrift der Oberfläche
 
-Der Schriftzug „VOLUMIX“ ist in **Ode to Idle Gaming** von
-[Chequered Ink](https://chequered.ink) gesetzt. Deren Lizenz erlaubt die
-Verwendung in Grafiken, nicht aber die Weitergabe der Schriftdatei selbst.
+Die gesamte Oberfläche ist in **Plus Jakarta Sans** gesetzt
+([Tokotype](https://github.com/tokotype/PlusJakartaSans)). Sie steht unter der
+**SIL Open Font License 1.1** — Weitergabe im Programmpaket ist ausdrücklich
+erlaubt, auch bei kommerzieller Nutzung.
 
-Deshalb liegt im Programm **nur ein fertiges Bild** (`volumix/fonts/wortmarke.png`),
-keine Schriftdatei. Wer die Schrift selbst benutzen möchte, lädt sie bei
-Chequered Ink herunter.
+Die Schriftdatei liegt unter `volumix/fonts/PlusJakartaSans.ttf`, der
+vollständige Lizenztext direkt daneben in `PlusJakartaSans-OFL.txt`.
 
-> Die Lizenz gilt ausdrücklich nur für **nicht-kommerzielle** Nutzung. Sollte
-> Volumix jemals Geld kosten, muss die Wortmarke vorher auf eine andere
-> Schrift wechseln oder eine kommerzielle Lizenz bekommen.
+> Die OFL verlangt lediglich, dass die Schrift nicht unter ihrem eigenen Namen
+> verkauft wird und der Lizenztext mitwandert. Beides ist erfüllt.
 
 ## Programmsymbole
 

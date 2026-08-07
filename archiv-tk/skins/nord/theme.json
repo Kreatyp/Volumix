@@ -1,7 +1,0 @@
-{
-  "name": "Nordblau",
-
-  "accent":       { "dark": "#88C0D0", "light": "#4C7FA8" },
-  "accent_hover": { "dark": "#9BD0DE", "light": "#3F6B90" },
-  "red":          { "dark": "#BF616A", "light": "#B4545D" }
-}

@@ -5,9 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Volumix — one app at a time</title>
 <meta name="description" content="Windows changes every app at once. Volumix points your volume keys at the apps you choose. Free, no installer, for Windows.">
-<link rel="icon" href="bilder/mixer-violet-dark.png">
+<link rel="icon" href="bilder/symbol.svg">
 
 <style>
+/* Dieselbe Schrift wie im Programm. SIL Open Font License. */
+@font-face{
+  font-family:"Plus Jakarta Sans";
+  src:url("PlusJakartaSans.ttf") format("truetype-variations");
+  font-weight:200 800;
+  font-display:swap;
+}
 :root{
   --grund:#0A0B0F;
   --karte:#14161C;
@@ -16,7 +23,7 @@
   --fg:#F2F4F8;
   --leise:#858C9E;
   --akzent:#7C5CFF;
-  --sys:"Segoe UI Variable Display","Segoe UI",-apple-system,system-ui,sans-serif;
+  --sys:"Plus Jakarta Sans","Segoe UI Variable Display","Segoe UI",-apple-system,system-ui,sans-serif;
   --mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
 }
 *{box-sizing:border-box}
@@ -42,7 +49,13 @@ img{max-width:100%; height:auto; display:block}
 
 /* ---------- Kopf ---------- */
 .kopf{padding:clamp(56px,9vw,104px) 0 clamp(30px,5vw,52px)}
-.marke{width:min(300px,58vw); margin:0 0 30px}
+/* Wortmarke wie im Programm: Zeichen und Name in derselben Schrift */
+.marke{display:flex; align-items:center; gap:clamp(12px,2vw,18px); margin:0 0 30px}
+.marke svg{width:clamp(42px,6.4vw,58px); height:clamp(42px,6.4vw,58px); flex:none}
+.marke b{
+  font-size:clamp(30px,4.8vw,46px); font-weight:800;
+  letter-spacing:-.035em; line-height:1;
+}
 h1{
   font-size:clamp(34px,6.2vw,66px); line-height:1.02; letter-spacing:-.035em;
   font-weight:700; margin:0 0 22px; max-width:14ch;
@@ -190,7 +203,16 @@ footer p{margin:0 0 8px}
 
 <header class="kopf">
   <div class="bahn">
-    <img class="marke" src="bilder/wortmarke.png" alt="Volumix" width="1464" height="240">
+    <div class="marke">
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <circle cx="24" cy="24" r="23" fill="var(--akzent)"/>
+        <rect x="9" y="14" width="30" height="6" rx="3" fill="#fff" opacity=".3"/>
+        <circle cx="17" cy="17" r="6.5" fill="#fff" opacity=".55"/>
+        <rect x="9" y="28" width="30" height="6" rx="3" fill="#fff" opacity=".3"/>
+        <circle cx="31" cy="31" r="6.5" fill="#fff"/>
+      </svg>
+      <b>Volumix</b>
+    </div>
     <h1>Turn one app down. <span>The game stays loud.</span></h1>
     <p class="sub">Windows moves everything at once. Volumix points your volume keys
       at the apps you pick — and leaves the rest alone.</p>
@@ -241,8 +263,8 @@ footer p{margin:0 0 8px}
   <div class="bahn">
     <div class="rahmen">
       <img id="schaubild" src="bilder/mixer-violet-dark.png"
-           alt="The Volumix window: master volume on top, then Chrome, Discord, Spotify and system sounds, each with its own slider and percentage."
-           width="840" height="824">
+           alt="The Volumix window: master volume on top, then Chrome, Discord, Spotify and system sounds, each with its own slider and percentage. Chrome is ticked, so the volume keys move only Chrome."
+           width="840" height="921">
     </div>
     <div class="regale" id="farben" role="group" aria-label="Accent colour"></div>
     <div class="hellDunkel" role="group" aria-label="Light or dark">
@@ -294,7 +316,7 @@ footer p{margin:0 0 8px}
 <footer>
   <div class="bahn">
     <p>Free · Windows 11, 64-bit · no account, and no network code in the build.</p>
-    <p>Wordmark set in “Ode to Idle Gaming” by Chequered Ink. App icons belong to
+    <p>Set in Plus Jakarta Sans (SIL Open Font License). App icons belong to
       their makers and are shown for illustration.</p>
   </div>
 </footer>

@@ -3,11 +3,12 @@
 import ctypes
 import functools
 
-from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtCore import (Property, QEasingCurve, QPropertyAnimation, QSize,
+                            Qt, QTimer, Signal)
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QDialog, QFrame,
-                               QHBoxLayout, QLabel, QLineEdit,
-                               QMenu, QPushButton, QScrollArea,
+                               QGraphicsOpacityEffect, QHBoxLayout, QLabel,
+                               QLineEdit, QMenu, QPushButton, QScrollArea,
                                QSizePolicy, QSystemTrayIcon,
                                QVBoxLayout, QWidget)
 
@@ -19,7 +20,8 @@ from .osd import Osd
 from . import sprache
 from .sprache import SPRACHEN, T
 from .theme import PALETTE, Theme
-from .widgets import FadeScroll, MixerRow, Slider, ToggleSwitch
+from .widgets import (FadeScroll, Flaeche, MixerRow, Slider,
+                      ToggleSwitch)
 
 SWITCH_MODES = ["none", "carry", "apps100"]     # Beschriftung via T()
 
@@ -34,13 +36,18 @@ def durchsichtig(widget, name):
     widget.setStyleSheet("#{} {{ background: transparent; }}".format(name))
 
 
-def rundknopf(symbol, theme, tooltip="", groesse=38):
+# Groesse der Symbole in den runden Knoepfen der Kopfzeile. Steht hier, weil
+# sie an zwei Stellen gebraucht wird – beim Bauen und beim Farbwechsel.
+RUND_SYMBOL = 22
+
+
+def rundknopf(symbol, theme, tooltip=""):
     b = QPushButton()
     b.setObjectName("Rund")
     b.setCursor(Qt.PointingHandCursor)
     b.setToolTip(tooltip)
-    b.setIcon(icons.pixmap(symbol, 19, theme.muted))
-    b.setIconSize(QSize(19, 19))
+    b.setIcon(icons.pixmap(symbol, RUND_SYMBOL, theme.muted))
+    b.setIconSize(QSize(RUND_SYMBOL, RUND_SYMBOL))
     b._symbol = symbol
     return b
 
@@ -81,21 +88,48 @@ class _Profilname(QLineEdit):
 class _ProfilPunkte(QWidget):
     """Zeigt, das wievielte von wie vielen Profilen offen ist.
 
-    Der aktive Punkt ist ein kurzer Strich – so sieht man die Stelle auch
-    aus dem Augenwinkel, ohne die Punkte zu zaehlen.
+    Die Punkte stehen in einem festen Raster, die Markierung gleitet darueber
+    hinweg. So bleibt die Reihe beim Blaettern stehen, statt sich jedes Mal
+    neu zu ordnen – und man sieht in welche Richtung man gerade gegangen ist.
     """
 
     HOECHSTENS = 10        # darueber wird gezaehlt statt gezeichnet
+    RASTER = 13.0
+    PUNKT = 4.0
+    MARKE = 12.0
 
     def __init__(self, theme, parent=None):
         super().__init__(parent)
         self.theme = theme
         self.anzahl = 0
         self.aktiv = 0
+        self._stelle = 0.0
         self.setFixedHeight(9)
+        self._gleiten = QPropertyAnimation(self, b"stelle", self)
+        self._gleiten.setDuration(200)
+        self._gleiten.setEasingCurve(QEasingCurve.OutCubic)
+
+    def get_stelle(self):
+        return self._stelle
+
+    def set_stelle(self, wert):
+        self._stelle = wert
+        self.update()
+
+    stelle = Property(float, get_stelle, set_stelle)
 
     def setzen(self, anzahl, aktiv):
+        gewechselt = anzahl == self.anzahl and aktiv != self.aktiv
         self.anzahl, self.aktiv = anzahl, aktiv
+        self._gleiten.stop()
+        if gewechselt:
+            self._gleiten.setStartValue(self._stelle)
+            self._gleiten.setEndValue(float(aktiv))
+            self._gleiten.start()
+        else:
+            # Kam ein Profil dazu oder faellt eines weg, verschiebt sich das
+            # ganze Raster – dann waere eine Fahrt nur Zappeln.
+            self._stelle = float(aktiv)
         self.update()
 
     def paintEvent(self, e):
@@ -114,17 +148,19 @@ class _ProfilPunkte(QWidget):
             p.drawText(self.rect(), Qt.AlignCenter,
                        "{} / {}".format(self.aktiv + 1, self.anzahl))
             return
-        punkt, strich, luft, h = 4.0, 11.0, 4.0, 4.0
-        breite = sum(strich if i == self.aktiv else punkt
-                     for i in range(self.anzahl)) + luft * (self.anzahl - 1)
-        x = (self.width() - breite) / 2.0
+        h = 4.0
+        breite = self.RASTER * (self.anzahl - 1) + self.PUNKT
+        links = (self.width() - breite) / 2.0
         y = (self.height() - h) / 2.0
+        p.setBrush(QColor(self.theme.muted))
         for i in range(self.anzahl):
-            w = strich if i == self.aktiv else punkt
-            p.setBrush(QColor(self.theme.accent) if i == self.aktiv
-                       else QColor(self.theme.muted))
-            p.drawRoundedRect(QRectF(x, y, w, h), h / 2.0, h / 2.0)
-            x += w + luft
+            p.drawRoundedRect(
+                QRectF(links + i * self.RASTER, y, self.PUNKT, h),
+                h / 2.0, h / 2.0)
+        mitte = links + self._stelle * self.RASTER + self.PUNKT / 2.0
+        p.setBrush(QColor(self.theme.accent))
+        p.drawRoundedRect(QRectF(mitte - self.MARKE / 2.0, y, self.MARKE, h),
+                          h / 2.0, h / 2.0)
 
 
 class _KlickZeile(QWidget):
@@ -141,11 +177,11 @@ class _KlickZeile(QWidget):
             self.geklickt.emit()
 
 
-class Karte(QFrame):
-    """Panel mit Verlauf und runden Ecken – eine Zeile Stilvorlage."""
+class Karte(Flaeche):
+    """Panel mit Verlauf, Lichtkante und runden Ecken."""
 
-    def __init__(self, titel=None, parent=None):
-        super().__init__(parent)
+    def __init__(self, theme, titel=None, parent=None):
+        super().__init__(theme, 16, parent)
         self.setObjectName("Karte")
         self.lay = QVBoxLayout(self)
         self.lay.setContentsMargins(18, 14, 18, 16)
@@ -231,6 +267,7 @@ class MainWindow(QWidget):
         self.hook.aktiv = self.cfg["active"]
         self.hook.reverse = self.cfg["reverse"]
         self.hook.media_keys = self.cfg["media_keys"]
+        self.hook.titel_taste = self.cfg["titel_taste"]
         self.hook.hat_ziele = lambda: bool(self.targets)
 
         self._aufbauen()
@@ -263,9 +300,8 @@ class MainWindow(QWidget):
         kopf.addWidget(self.logo)
         spalte = QVBoxLayout()
         spalte.setSpacing(2)
-        titel = QLabel()
+        titel = QLabel("Volumix")
         titel.setObjectName("Wortmarke")
-        self.wortmarke = titel
         unter = QLabel(T("untertitel"))
         unter.setObjectName("Untertitel")
         spalte.addWidget(titel)
@@ -278,7 +314,8 @@ class MainWindow(QWidget):
         for b in (self.btn_modus, self.btn_einst):
             kopf.addWidget(b)
         aussen.addWidget(self.kopfzeile)
-        aussen.addWidget(self._profilleiste_bauen())
+        self.profilleiste = self._profilleiste_bauen()
+        aussen.addWidget(self.profilleiste)
 
         # Umschaltbarer Bereich: Mixer / Einstellungen
         self.mixer_seite = self._mixer_bauen()
@@ -288,7 +325,7 @@ class MainWindow(QWidget):
         aussen.addWidget(self.einst_seite, 1)
 
         # Statusleiste
-        self.leiste = QFrame()
+        self.leiste = Flaeche(self.theme, 12)
         self.leiste.setObjectName("Leiste")
         self.leiste.setFixedHeight(46)
         ll = QHBoxLayout(self.leiste)
@@ -307,7 +344,7 @@ class MainWindow(QWidget):
         lay = QVBoxLayout(seite)
         lay.setContentsMargins(0, 0, 0, 0)
 
-        self.karte = Karte(T("mixer"))
+        self.karte = Karte(self.theme, T("mixer"))
         lay.addWidget(self.karte, 1)
 
         # Suchfeld – erscheint erst ab genug Apps
@@ -397,7 +434,7 @@ class MainWindow(QWidget):
         roll.verticalScrollBar().valueChanged.connect(self._einst_fade)
 
         # --- Design ---
-        k = Karte(T("design"))
+        k = Karte(self.theme, T("design"))
         zeile = QHBoxLayout()
         zeile.setAlignment(Qt.AlignTop)
         links = QVBoxLayout()
@@ -443,7 +480,7 @@ class MainWindow(QWidget):
         ilay.addWidget(k)
 
         # --- Steuerung ---
-        k = Karte(T("steuerung"))
+        k = Karte(self.theme, T("steuerung"))
         tempo_kopf = QHBoxLayout()
         tempo_kopf.setSpacing(4)
         tempo_kopf.addWidget(QLabel(T("geschwindigkeit")))
@@ -463,6 +500,9 @@ class MainWindow(QWidget):
         self._schalter_zeile(
             k, T("richtung_umkehren"), self.cfg["reverse"],
             self._reverse_setzen)
+        self._schalter_zeile(
+            k, T("titel_taste"), self.cfg["titel_taste"],
+            self._titel_taste_setzen, hilfe=T("titel_hilfe"))
         self._schalter_zeile(
             k, T("mit_windows_starten"), config.get_autostart(),
             lambda an: config.set_autostart(an))
@@ -490,7 +530,7 @@ class MainWindow(QWidget):
         ilay.addWidget(k)
 
         # --- Anzeige ---
-        k = Karte(T("anzeige"))
+        k = Karte(self.theme, T("anzeige"))
         self._schalter_zeile(
             k, T("live_pegel"), self.cfg["meters"],
             self._meter_setzen)
@@ -513,7 +553,7 @@ class MainWindow(QWidget):
         ilay.addWidget(k)
 
         # --- Sprache ---
-        k = Karte(T("sprache_abschnitt"))
+        k = Karte(self.theme, T("sprache_abschnitt"))
         sp = QHBoxLayout()
         sp.setSpacing(8)
         self.sprach_gruppe = QButtonGroup(self)
@@ -599,14 +639,13 @@ class MainWindow(QWidget):
             self.setStyleSheet(self.theme.qss())
         dpr = self.devicePixelRatioF()
         self.logo.setPixmap(icons.app_logo(40, self.theme.accent, dpr))
-        if getattr(self, "wortmarke", None) is not None:
-            self.wortmarke.setPixmap(icons.wortmarke(27, self.theme.fg, dpr))
         self.setWindowIcon(QIcon(icons.app_logo(64, self.theme.accent, dpr)))
         for b in (self.btn_modus, self.btn_einst,
                   getattr(self, "btn_zurueck", None)):
             if b is not None:
                 name = "sun" if (b is self.btn_modus and self.theme.hell) else b._symbol
-                b.setIcon(icons.pixmap(name, 19, self.theme.muted, dpr))
+                b.setIcon(icons.pixmap(name, RUND_SYMBOL, self.theme.muted, dpr))
+                b.setIconSize(QSize(RUND_SYMBOL, RUND_SYMBOL))
         for b in getattr(self, "_flachknoepfe", []):
             b.setIcon(icons.pixmap(b._symbol, 17, self.theme.muted, dpr))
         for b in getattr(self, "_hilfe_knoepfe", []):
@@ -614,6 +653,12 @@ class MainWindow(QWidget):
         for punkt in getattr(self, "farbknoepfe", {}).values():
             punkt.theme = self.theme
             punkt.update()
+        # Die Flaechen zeichnen sich selbst und wissen von einem Farbwechsel
+        # sonst nichts – ohne das bleiben Karten und Leisten stehen, wie sie
+        # waren, waehrend alles darauf schon die neue Farbe hat.
+        for flaeche in self.findChildren(Flaeche):
+            flaeche.theme = self.theme
+            flaeche.update()
         for row in self.rows.values():
             row.theme_wechseln(self.theme)
         self.fade.theme = self.theme
@@ -653,6 +698,24 @@ class MainWindow(QWidget):
         except Exception:
             pass
 
+    def _einblenden(self, widget, ms=160):
+        """Weiches Aufblenden.
+
+        Der Effekt wird hinterher wieder entfernt: dauerhaft gesetzt, kostet
+        er bei jedem Neuzeichnen einen Zwischenpuffer – und der Mixer zeichnet
+        sich mehrmals pro Sekunde neu.
+        """
+        effekt = QGraphicsOpacityEffect(widget)
+        widget.setGraphicsEffect(effekt)
+        anim = QPropertyAnimation(effekt, b"opacity", widget)
+        anim.setDuration(ms)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.finished.connect(
+            lambda: QTimer.singleShot(0, lambda: widget.setGraphicsEffect(None)))
+        anim.start(QPropertyAnimation.DeleteWhenStopped)
+
     def _seite(self, nr):
         self.view = nr
         if nr == 1 and self.mixer_seite.isVisible():
@@ -661,14 +724,19 @@ class MainWindow(QWidget):
         self.einst_seite.setVisible(nr == 1)
         self.leiste.setVisible(nr == 0)
         self.kopfzeile.setVisible(nr == 0)
+        # Profile gehoeren zum Mixer. In den Einstellungen wechselt man keine
+        # Profile – dort steht die Leiste nur im Weg.
+        self.profilleiste.setVisible(nr == 0)
         if nr == 1:
             # So weit aufziehen, wie der Inhalt braucht – aber nie weiter.
             QTimer.singleShot(0, self._einst_hoehe)
+            self._einblenden(self.einst_seite)
         else:
             zurueck = getattr(self, "_mixer_hoehe", None)
             if zurueck:
                 self.resize(self.width(), zurueck)
             QTimer.singleShot(0, self._hoehe_anpassen)
+            self._einblenden(self.mixer_seite)
 
     def _modus_wechseln(self):
         self._modus_setzen("dark" if self.theme.hell else "light")
@@ -980,7 +1048,7 @@ class MainWindow(QWidget):
     # ---- Profile ---------------------------------------------------------
     def _profilleiste_bauen(self):
         """Schmaler Streifen: zurueck, Name, vor, plus."""
-        leiste = QFrame()
+        leiste = Flaeche(self.theme, 12)
         leiste.setObjectName("Profilleiste")
         leiste.setFixedHeight(52)
         z = QHBoxLayout(leiste)
@@ -1144,6 +1212,14 @@ class MainWindow(QWidget):
         self._profil_oeffnen(namen[(i + richtung) % len(namen)])
 
     def _profil_oeffnen(self, name):
+        """Ein anderes Profil aufschlagen.
+
+        Frueher wurde dafuer das ganze Fenster verworfen und neu gebaut – zu
+        der Zeit hing an einem Profil noch die halbe Einstellungsseite. Ein
+        Profil haelt heute nur Pegel und Ziele; dafuer genuegt es, die
+        vorhandenen Zeilen umzustellen. Nebenbei faellt das Fenster beim
+        Blaettern nicht mehr kurz zusammen.
+        """
         profil = self.profiles.get(name)
         if profil is None:
             return
@@ -1153,18 +1229,16 @@ class MainWindow(QWidget):
         # Profil – leer heisst „warte auf frische Meldung“.
         self._items = []
         self.cfg["profil"] = name
-        for k in config.PROFIL_TEILE:
-            if k in profil:
-                self.cfg[k] = profil[k]
         ziele = profil.get("targets")
         if ziele is not None:
             self.targets = set(ziele)
             self.engine.targets = set(self.targets)
-        self.theme.set(self.cfg["mode"], self.cfg["accent"])
-        icons.cache_leeren()
-        self._tempo_uebernehmen()
+            for key, row in self.rows.items():
+                row.set_gewaehlt(key in self.targets)
         self.engine.job("profile", profil)
-        self._neu_aufbauen(self.view if hasattr(self, "view") else 0)
+        self._profilleiste_auffrischen()
+        self._einblenden(self.profil_name, 200)
+        self._status_setzen()
         self._speichern()
         self._melden(T("profil_geladen", name=name))
 
@@ -1244,6 +1318,14 @@ class MainWindow(QWidget):
         self.hook.media_keys = not scrollen
         self.hook.start()
         self._melden(T("rad_aktiv") if scrollen else T("tasten_aktiv"))
+        self._speichern()
+
+    def _titel_taste_setzen(self, an):
+        self.cfg["titel_taste"] = an
+        self.hook.titel_taste = an
+        # Neu starten: Der Tastatur-Hook wird jetzt gebraucht (oder eben
+        # nicht mehr), und das entscheidet sich erst beim Aufbauen.
+        self.hook.start()
         self._speichern()
 
     def _reverse_setzen(self, an):
@@ -1416,6 +1498,9 @@ class MainWindow(QWidget):
         self.hide()
 
     def _beenden(self):
+        # Die Spur im Protokoll: Wer sie findet, weiss, dass jemand beendet
+        # hat. Fehlt sie, ist die App von selbst verschwunden.
+        config.notiz("beendet")
         self._speichern()
         self.hook.stop()
         # Erst abklemmen, dann stoppen: der Audio-Thread laeuft noch einen
@@ -1477,7 +1562,7 @@ class AppsDialog(QDialog):
 
         aussen = QVBoxLayout(self)
         aussen.setContentsMargins(0, 0, 0, 0)
-        karte = QFrame()
+        karte = Flaeche(parent.theme, 16)
         karte.setObjectName("Karte")
         aussen.addWidget(karte)
         self.setStyleSheet(parent.theme.qss())
@@ -1509,6 +1594,7 @@ class AppsDialog(QDialog):
         self.roll = QScrollArea()
         self.roll.setWidgetResizable(True)
         self.roll.setFrameShape(QFrame.NoFrame)
+        self.roll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         durchsichtig(self.roll.viewport(), "DlgFlaeche")
         self.inhalt = QWidget()
         durchsichtig(self.inhalt, "DlgInhalt")
@@ -1518,6 +1604,12 @@ class AppsDialog(QDialog):
         self.ilay.addStretch(1)
         self.roll.setWidget(self.inhalt)
         lay.addWidget(self.roll, 1)
+        # Die Liste ist oft laenger als der Dialog. Ohne Abblendung sieht sie
+        # unten einfach aufgehoert aus – man sucht nicht nach dem, was man
+        # nicht vermutet. Hier laenger als im Mixer: die Liste geht oft ueber
+        # das Doppelte des Sichtbaren, das darf man von weitem sehen.
+        self.schleier = FadeScroll(parent.theme, hoehe=42, parent=self.roll)
+        self.roll.verticalScrollBar().valueChanged.connect(self._fade)
 
         knoepfe = QHBoxLayout()
         knoepfe.addStretch(1)
@@ -1532,6 +1624,18 @@ class AppsDialog(QDialog):
 
         self.liste_fuellen()
 
+    def _fade(self):
+        leiste = self.roll.verticalScrollBar()
+        sicht = self.roll.viewport()
+        self.schleier.setGeometry(0, 0, sicht.width(), sicht.height())
+        self.schleier.zeigen(leiste.value() > 4,
+                             leiste.value() < leiste.maximum() - 4)
+        self.schleier.raise_()
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        QTimer.singleShot(0, self._fade)
+
     def liste_fuellen(self):
         while self.ilay.count() > 1:
             w = self.ilay.takeAt(0)
@@ -1544,6 +1648,7 @@ class AppsDialog(QDialog):
             leer = QLabel(T("keine_app_ton"))
             leer.setObjectName("Hinweis")
             self.ilay.insertWidget(0, leer)
+            QTimer.singleShot(0, self._fade)
             return
         pos = 0
         for key in live:
@@ -1554,6 +1659,8 @@ class AppsDialog(QDialog):
                 key, name, key not in self.vorgemerkt, self.haupt,
                 self._umschalten))
             pos += 1
+        # Erst wenn die Zeilen stehen, weiss der Rollbereich, wie weit es geht
+        QTimer.singleShot(0, self._fade)
 
     def _umschalten(self, key, sichtbar):
         if sichtbar:
@@ -1582,7 +1689,10 @@ class _AppZeile(QWidget):
         self.theme = haupt.theme
         self.setFixedHeight(40)
         self.setCursor(Qt.PointingHandCursor)
-        self.setObjectName("Zeile")
+        # Eigener Name: die Mixer-Zeile zeichnet ihren Hintergrund selbst,
+        # diese hier holt ihn aus der Stilvorlage.
+        self.setObjectName("DlgZeile")
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self.setProperty("hover", False)
 
         lay = QHBoxLayout(self)

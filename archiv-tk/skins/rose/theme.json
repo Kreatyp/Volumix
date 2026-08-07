@@ -1,7 +1,0 @@
-{
-  "name": "Rosé",
-
-  "accent":       { "dark": "#FF5C9D", "light": "#DB2777" },
-  "accent_hover": { "dark": "#FF7DB0", "light": "#BE185D" },
-  "red":          { "dark": "#FF5C7C", "light": "#E5484D" }
-}

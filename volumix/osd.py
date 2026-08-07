@@ -12,6 +12,8 @@ from PySide6.QtGui import (QColor, QFont, QGuiApplication, QLinearGradient,
 from PySide6.QtWidgets import QWidget
 
 from . import icons
+from .theme import schrift
+from .widgets import flaeche_zeichnen
 
 
 class Osd(QWidget):
@@ -158,12 +160,7 @@ class Osd(QWidget):
             p.drawRoundedRect(karte.adjusted(-i, -i + i * 0.4, i, i + i * 0.4),
                               radius + i, radius + i)
 
-        verlauf = QLinearGradient(karte.topLeft(), karte.bottomLeft())
-        verlauf.setColorAt(0.0, QColor(t.card_top))
-        verlauf.setColorAt(1.0, QColor(t.card_bottom))
-        p.setBrush(verlauf)
-        p.setPen(QColor(t.stroke))
-        p.drawRoundedRect(karte, radius, radius)
+        flaeche_zeichnen(p, t, karte, radius)
 
         dpr = self.devicePixelRatioF()
         d = int(30 * f)
@@ -181,7 +178,7 @@ class Osd(QWidget):
                     pm = icons.app_logo(d, akzent.name(), dpr)
                 else:
                     pm = icons.buchstaben_pixmap(name[:1] or "?", d,
-                                                 t.card2, t.muted, dpr)
+                                                 t.senke, t.muted, dpr)
             p.drawPixmap(int(x), int(mitte - d / 2), d, d, pm)
             x += d + 8 * f
 
@@ -195,15 +192,16 @@ class Osd(QWidget):
         # Balken
         rechts = karte.right() - 16 * f
         text = self._text or "{} %".format(self._prozent)
-        schrift = QFont("Segoe UI", int(14 * f))
-        schrift.setWeight(QFont.DemiBold)
-        p.setFont(schrift)
+        satz = QFont(schrift())
+        satz.setPixelSize(int(19 * f))
+        satz.setWeight(QFont.Bold)
+        p.setFont(satz)
         breite_text = p.fontMetrics().horizontalAdvance(text) + 8
         balken_rechts = rechts - breite_text - 12 * f
         bh = 8 * f
         schiene = QRectF(x, mitte - bh / 2, max(20.0, balken_rechts - x), bh)
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(t.card2))
+        p.setBrush(QColor(t.senke))
         p.drawRoundedRect(schiene, bh / 2, bh / 2)
         if self._text is None and self._gezeigt > 0:
             voll = QRectF(schiene)

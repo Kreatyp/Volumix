@@ -113,6 +113,34 @@ def ballast_entfernen(ordner):
         print("Ballast entfernt: {:.1f} MB".format(weg / (1024 * 1024)))
 
 
+def verknuepfung_anlegen(ziel):
+    """Startknopf im Hauptordner.
+
+    Die .exe selbst kann dort nicht liegen: PyInstaller legt neben sie einen
+    Ordner `_internal` mit Qt und allem Uebrigen, und ohne den startet sie
+    nicht. Eine Verknuepfung tut dasselbe, ohne 56 MB in den Projektordner zu
+    kippen.
+    """
+    kurz = os.path.join(HIER, "Volumix.lnk")
+    befehl = (
+        "$w = New-Object -ComObject WScript.Shell; "
+        "$v = $w.CreateShortcut('{}'); "
+        "$v.TargetPath = '{}'; "
+        "$v.WorkingDirectory = '{}'; "
+        "$v.IconLocation = '{}'; "
+        "$v.Description = 'Volumix starten'; "
+        "$v.Save()").format(kurz, ziel, os.path.dirname(ziel), ziel)
+    try:
+        r = subprocess.run(["powershell", "-NoProfile", "-Command", befehl],
+                           capture_output=True)
+        if r.returncode == 0 and os.path.exists(kurz):
+            print("Verknuepfung angelegt:", kurz)
+            return
+        print("Verknuepfung nicht angelegt:", r.stderr.decode("cp1252", "ignore").strip())
+    except Exception as e:
+        print("Verknuepfung nicht angelegt:", e)
+
+
 def main():
     einzeldatei = "--onefile" in sys.argv
     icon_bauen(ICON)
@@ -130,8 +158,9 @@ def main():
         "--workpath", arbeit,
         "--specpath", spec,
         "--noconfirm",
-        # Das Bild der Wortmarke muss mit ins Paket. Die Schrift selbst gehoert
-        # NICHT hierher: ihre Lizenz verbietet die Weitergabe.
+        # Die Schrift der Oberflaeche. Sie steht unter der SIL Open Font
+        # License, die das Mitliefern ausdruecklich erlaubt – der Lizenztext
+        # liegt daneben und wandert mit.
         "--add-data", os.path.join(HIER, "volumix", "fonts") + ";volumix/fonts",
         # Was PyInstaller nicht von allein findet
         "--hidden-import", "pynput.mouse._win32",
@@ -170,6 +199,8 @@ def main():
             shutil.copyfile(hinweise,
                             os.path.join(os.path.dirname(fertig),
                                          "LIZENZHINWEISE.md"))
+    if os.path.exists(fertig):
+        verknuepfung_anlegen(fertig)
     print("\nFertig ->", fertig)
     if os.path.exists(fertig):
         print("Startdatei: {:.1f} MB".format(

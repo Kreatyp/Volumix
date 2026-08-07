@@ -3,10 +3,9 @@
 Volumix
 =======
 Lautstaerke-Mixer fuer einzelne Apps, gesteuert per Daumenrad oder
-Lautstaerke-Tasten. Gebaut fuer die Logitech MX Master 4.
+Lautstaerke-Tasten.
 
 Oberflaeche: PySide6 (Qt). Audio: pycaw. Eingabe: pynput.
-Autor: fuer Luis gebaut mit Claude Code.
 """
 import ctypes
 import sys
@@ -54,7 +53,58 @@ import threading                                          # noqa: E402
 from PySide6.QtCore import QTimer                          # noqa: E402
 from PySide6.QtWidgets import QApplication                 # noqa: E402
 
+from volumix import config                                 # noqa: E402
 from volumix.window import MainWindow                      # noqa: E402
+
+def _fehler_festhalten():
+    """Unbehandelte Fehler in eine Datei schreiben.
+
+    Die App laeuft ohne Konsole. Ohne das hier geht jede Meldung ins Nichts –
+    und ein Programm, das sich stumm schliesst, laesst sich hinterher nicht
+    mehr untersuchen.
+
+    Zwei Dateien, mit Absicht:
+
+    `fehler.log` haelt fest, was wirklich zaehlt – wann die App lief, wann
+    sie beendet wurde, und jeden Python-Fehler mit vollem Weg.
+
+    `absturz.log` bekommt der `faulthandler`, der auch Abstuerze unterhalb
+    von Python sieht. Er meldet allerdings jede Windows-Ausnahme, auch die
+    ordnungsgemaess behandelten: Schon das blosse Oeffnen eines Fensters
+    erzeugt eine (0x8001010D). Stuenden beide in derselben Datei, ginge die
+    eine echte Meldung in diesem Rauschen unter.
+    """
+    import datetime
+    import faulthandler
+    import os
+    import traceback
+    try:
+        os.makedirs(config.CONFIG_DIR, exist_ok=True)
+        for name in (config.PROTOKOLL, config.ABSTURZ):
+            pfad = config.protokoll_pfad(name)
+            if (os.path.exists(pfad)
+                    and os.path.getsize(pfad) > config.PROTOKOLL_GRENZE):
+                os.remove(pfad)
+        datei = open(config.protokoll_pfad(), "a", encoding="utf-8",
+                     buffering=1)
+        tief = open(config.protokoll_pfad(config.ABSTURZ), "a",
+                    encoding="utf-8", buffering=1)
+    except Exception:
+        return
+    faulthandler.enable(tief)
+
+    def schreiben(art, wert, spur):
+        try:
+            datei.write("\n=== FEHLER {} ===\n".format(
+                datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")))
+            traceback.print_exception(art, wert, spur, file=datei)
+        except Exception:
+            pass
+
+    sys.excepthook = schreiben
+    threading.excepthook = lambda a: schreiben(a.exc_type, a.exc_value,
+                                               a.exc_traceback)
+    config.notiz("gestartet")
 
 
 def _auf_zweitstart_warten(fenster):
@@ -70,10 +120,10 @@ def _auf_zweitstart_warten(fenster):
 
 
 def main():
+    _fehler_festhalten()
     app = QApplication(sys.argv)
     app.setApplicationName("Volumix")
     app.setQuitOnLastWindowClosed(False)     # laeuft im Infobereich weiter
-
 
     fenster = MainWindow()
     _auf_zweitstart_warten(fenster)
