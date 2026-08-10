@@ -84,16 +84,14 @@ def schrift():
 
 
 def basis_schrift():
-    """Die Schrift der ganzen Anwendung.
+    """Eine Schrift der Anwendung – fuer alles, was sich selbst zeichnet.
 
-    Wird ueber QApplication.setFont gesetzt und nicht ueber die Stilvorlage:
-    Ein `font-family` auf QWidget vererbt sich nicht zuverlaessig an alles,
-    was sich selbst zeichnet. So haben Fenster, Einblendung und jedes selbst
-    gezeichnete Feld dieselbe Grundlage.
-
-    (Die Glaettung laesst sich hier nicht vorgeben – `NoSubpixelAntialias`
-    reicht Qt unter Windows nicht an DirectWrite durch. Nachgemessen: mit und
-    ohne Vorgabe identische 79 % farbige Randpixel.)
+    Die Familie MUSS auch in der Stilvorlage stehen. Sie stattdessen ueber
+    QApplication.setFont zu setzen, sah nach der besseren Idee aus, ging aber
+    schief: Verlangt das Blatt dann ein Gewicht, das die Grundschrift nicht
+    fuehrt (die Wortmarke steht auf 800), sucht Qt eine passende Familie und
+    landet bei der Systemschrift. Die Wortmarke stand danach in Segoe UI –
+    nachgewiesen mit QFontInfo, deshalb prueft test_schalter das jetzt.
     """
     from PySide6.QtGui import QFont
     f = QFont(schrift())
@@ -172,9 +170,15 @@ class Theme:
     def qss(self):
         t = self
         return f"""
-        /* Die Familie kommt aus basis_schrift() ueber
-           QApplication.setFont – hier stehen nur Groessen und Gewichte. */
-        QWidget {{ color: {t.fg}; }}
+        /* Die Familie gehoert hierher, nicht nur an die Anwendung: Steht sie
+           allein in QApplication.setFont, faellt Qt bei jedem abweichenden
+           Gewicht auf die Systemschrift zurueck. */
+        QWidget {{
+            color: {t.fg};
+            font-family: "{schrift()}", "Segoe UI";
+            font-size: 13px;
+            font-weight: 500;
+        }}
         #Fenster {{ background: {t.bg}; }}
 
         /* Karte, Leiste und Profilleiste zeichnen sich selbst –

@@ -172,12 +172,30 @@ print("\n=== Mitgelieferte Schrift ===")
 from volumix import theme as th                                 # noqa: E402
 pruefe("Schrift ist angemeldet", th.schrift() != th.SCHRIFT_ERSATZ,
        True)
-# Geprueft wird das Ergebnis, nicht der Weg: Die Familie kommt ueber
-# QApplication.setFont und steht bewusst nicht mehr in der Stilvorlage.
-pruefe("und liegt bei der Anwendung an",
-       QApplication.instance().font().family(), th.schrift())
-pruefe("und kommt bei den Beschriftungen an",
-       f.status.font().family(), th.schrift())
+pruefe("und steht in der Stilvorlage", th.schrift() in f.theme.qss(), True)
+
+# Was zaehlt, ist nicht die gewuenschte Schrift, sondern die tatsaechlich
+# gezeichnete. Qt nimmt still eine andere Familie, wenn es das verlangte
+# Gewicht in der eingestellten nicht findet – die Wortmarke (Gewicht 800)
+# stand dadurch eine Zeit lang in Segoe UI, ohne dass irgendetwas meckerte.
+from PySide6.QtGui import QFontInfo                              # noqa: E402
+from PySide6.QtWidgets import QLabel                             # noqa: E402
+falsch = []
+for seite in (0, 1):
+    f._seite(seite)
+    app.processEvents()
+    for lbl in f.findChildren(QLabel):
+        if not lbl.text() or not lbl.isVisible():
+            continue
+        echt = QFontInfo(lbl.font()).family()
+        if echt != th.schrift():
+            falsch.append("{} -> {}".format(lbl.text()[:18], echt))
+f._seite(0)
+pruefe("jede Beschriftung wird auch wirklich damit gezeichnet",
+       not falsch, True)
+if falsch:
+    for m in sorted(set(falsch))[:4]:
+        print("       " + m)
 # Ohne Schriftdatei darf die App trotzdem starten – deshalb der Ersatz
 pruefe("Ersatz ist eine Windows-Schrift",
        th.SCHRIFT_ERSATZ.startswith("Segoe"), True)
