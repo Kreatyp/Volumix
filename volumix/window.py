@@ -19,7 +19,7 @@ from .hooks import InputHook
 from .osd import Osd
 from . import sprache
 from .sprache import SPRACHEN, T
-from .theme import PALETTE, Theme, mix
+from .theme import PALETTE, Theme, basis_schrift, mix
 from .widgets import (FadeScroll, Flaeche, MixerRow, Slider,
                       ToggleSwitch)
 
@@ -788,6 +788,9 @@ class MainWindow(QWidget):
         # Fenster und wuerden ein Widget-Stylesheet gar nicht sehen.
         app = QApplication.instance()
         if app is not None:
+            # Erst die Schrift, dann die Stilvorlage: Familie und Glaettung
+            # kommen von hier, das Blatt aendert nur Groessen und Gewichte.
+            app.setFont(basis_schrift())
             app.setStyleSheet(self.theme.qss())
         else:
             self.setStyleSheet(self.theme.qss())

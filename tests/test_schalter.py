@@ -172,8 +172,12 @@ print("\n=== Mitgelieferte Schrift ===")
 from volumix import theme as th                                 # noqa: E402
 pruefe("Schrift ist angemeldet", th.schrift() != th.SCHRIFT_ERSATZ,
        True)
-pruefe("und wird in der Stilvorlage benutzt", th.schrift() in f.theme.qss(),
-       True)
+# Geprueft wird das Ergebnis, nicht der Weg: Die Familie kommt ueber
+# QApplication.setFont und steht bewusst nicht mehr in der Stilvorlage.
+pruefe("und liegt bei der Anwendung an",
+       QApplication.instance().font().family(), th.schrift())
+pruefe("und kommt bei den Beschriftungen an",
+       f.status.font().family(), th.schrift())
 # Ohne Schriftdatei darf die App trotzdem starten – deshalb der Ersatz
 pruefe("Ersatz ist eine Windows-Schrift",
        th.SCHRIFT_ERSATZ.startswith("Segoe"), True)

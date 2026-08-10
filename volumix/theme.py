@@ -83,6 +83,25 @@ def schrift():
     return _familie
 
 
+def basis_schrift():
+    """Die Schrift der ganzen Anwendung.
+
+    Wird ueber QApplication.setFont gesetzt und nicht ueber die Stilvorlage:
+    Ein `font-family` auf QWidget vererbt sich nicht zuverlaessig an alles,
+    was sich selbst zeichnet. So haben Fenster, Einblendung und jedes selbst
+    gezeichnete Feld dieselbe Grundlage.
+
+    (Die Glaettung laesst sich hier nicht vorgeben – `NoSubpixelAntialias`
+    reicht Qt unter Windows nicht an DirectWrite durch. Nachgemessen: mit und
+    ohne Vorgabe identische 79 % farbige Randpixel.)
+    """
+    from PySide6.QtGui import QFont
+    f = QFont(schrift())
+    f.setPixelSize(13)
+    f.setWeight(QFont.Medium)
+    return f
+
+
 def _rgb(c):
     c = c.lstrip("#")
     return (int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16))
@@ -152,23 +171,22 @@ class Theme:
     # ---- Stilvorlage -----------------------------------------------------
     def qss(self):
         t = self
-        f = schrift()
         return f"""
-        QWidget {{
-            color: {t.fg};
-            font-family: "{f}", "Segoe UI";
-            font-size: 13px;
-            font-weight: 500;
-        }}
+        /* Die Familie kommt aus basis_schrift() ueber
+           QApplication.setFont – hier stehen nur Groessen und Gewichte. */
+        QWidget {{ color: {t.fg}; }}
         #Fenster {{ background: {t.bg}; }}
 
         /* Karte, Leiste und Profilleiste zeichnen sich selbst –
            siehe widgets.Flaeche. Hier stehen nur die Schriften. */
+        /* Kleinste Schrift im Programm. 10 px waren auf einem Bildschirm
+           ohne Skalierung unter dem, was Windows selbst benutzt (12 px) –
+           mit weiter Sperrung wird eine feine Schrift dort krisselig. */
         #Ueberschrift {{
             color: {mix(t.muted, t.bg, 0.15)};
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 700;
-            letter-spacing: 1.6px;
+            letter-spacing: 1.2px;
         }}
         #Titel {{ font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }}
         /* Die Wortmarke war frueher ein Bild in einer Deko-Schrift. Neben
@@ -186,9 +204,9 @@ class Theme:
         #Abdunklung {{ background: rgba(0, 0, 0, 120); }}
         #Untertitel {{
             color: {t.muted};
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 600;
-            letter-spacing: 1.5px;
+            letter-spacing: 1.2px;
         }}
         #Hinweis {{ color: {t.muted}; font-size: 12px; font-weight: 500; }}
         #Trennlinie {{ background: {mix(t.card, t.fg, 0.10)}; border: none; }}

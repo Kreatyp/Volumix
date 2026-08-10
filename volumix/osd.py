@@ -12,7 +12,7 @@ from PySide6.QtGui import (QColor, QFont, QGuiApplication, QLinearGradient,
 from PySide6.QtWidgets import QWidget
 
 from . import icons
-from .theme import schrift
+from .theme import basis_schrift
 from .widgets import flaeche_zeichnen
 
 
@@ -192,7 +192,7 @@ class Osd(QWidget):
         # Balken
         rechts = karte.right() - 16 * f
         text = self._text or "{} %".format(self._prozent)
-        satz = QFont(schrift())
+        satz = QFont(basis_schrift())
         satz.setPixelSize(int(19 * f))
         satz.setWeight(QFont.Bold)
         p.setFont(satz)

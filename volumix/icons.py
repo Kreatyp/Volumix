@@ -5,6 +5,7 @@ Die Symbole sind SVG-Pfade: Qt zeichnet sie in jeder Groesse scharf, ohne
 dass wir – wie in der Tk-Fassung – Bilder in allen Groessen vorhalten muessen.
 """
 import ctypes
+import math
 from ctypes import wintypes
 
 from PySide6.QtCore import QByteArray, QRectF, Qt
@@ -128,14 +129,20 @@ def speaker_pixmap(groesse, pegel, farbe, dpr=1.0, stumm=False):
 
 
 def _render(svg, groesse, dpr):
-    r = QSvgRenderer(QByteArray(svg.encode("utf-8")))
-    pm = QPixmap(int(groesse * dpr), int(groesse * dpr))
+    # Aufrunden, nicht abschneiden: Bei krummen Bildschirmskalierungen (125 %
+    # ergibt hier 1,875) fehlte sonst fast ein halbes Pixel, und Qt musste das
+    # Symbol beim Zeichnen wieder hochrechnen – genau davon wird es weich.
+    kanten = max(1, int(math.ceil(groesse * dpr - 0.001)))
+    pm = QPixmap(kanten, kanten)
     pm.fill(Qt.transparent)
     p = QPainter(pm)
     p.setRenderHint(QPainter.Antialiasing, True)
-    r.render(p, QRectF(0, 0, groesse * dpr, groesse * dpr))
+    r = QSvgRenderer(QByteArray(svg.encode("utf-8")))
+    r.render(p, QRectF(0, 0, kanten, kanten))
     p.end()
-    pm.setDevicePixelRatio(dpr)
+    # Das Bild ist jetzt minimal groesser als gewuenscht. Den Ausgleich macht
+    # die Bilddichte, damit die logische Groesse wieder genau stimmt.
+    pm.setDevicePixelRatio(kanten / float(groesse))
     return pm
 
 
