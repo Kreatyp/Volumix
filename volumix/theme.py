@@ -18,7 +18,13 @@ from . import config
 # Systemschrift – eine App, die nichts einstellt, sieht damit aus wie jede
 # andere. Die Datei steht unter der SIL Open Font License, die das Weitergeben
 # ausdruecklich erlaubt (siehe LIZENZHINWEISE.md).
-SCHRIFT_DATEI = "PlusJakartaSans.ttf"
+#
+# Vorher stand hier Plus Jakarta Sans. Die ist als Display-Schrift gebaut:
+# gross sieht sie hervorragend aus, aber in den Groessen, in denen dieses
+# Programm fast nur schreibt (11 bis 14 px), stehen ihre Buchstaben gedraengt
+# und die Strichstaerken werden ungleichmaessig. Inter ist fuer genau diese
+# Groessen auf dem Bildschirm gemacht.
+SCHRIFT_DATEI = "Inter.ttf"
 SCHRIFT_ERSATZ = "Segoe UI Variable Text"
 
 _familie = None
