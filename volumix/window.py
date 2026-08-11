@@ -19,7 +19,7 @@ from .hooks import InputHook
 from .osd import Osd
 from . import sprache
 from .sprache import SPRACHEN, T
-from .theme import PALETTE, Theme, mix
+from .theme import PALETTE, Theme, basis_schrift, glaettung, mix
 from .widgets import (FadeScroll, Flaeche, MixerRow, Slider,
                       ToggleSwitch)
 
@@ -788,7 +788,9 @@ class MainWindow(QWidget):
         # Fenster und wuerden ein Widget-Stylesheet gar nicht sehen.
         app = QApplication.instance()
         if app is not None:
+            app.setFont(basis_schrift())
             app.setStyleSheet(self.theme.qss())
+            self._kanten_weich_machen()
         else:
             self.setStyleSheet(self.theme.qss())
         dpr = self.devicePixelRatioF()
@@ -821,6 +823,18 @@ class MainWindow(QWidget):
         if getattr(self, "tray", None):
             self.tray.setIcon(QIcon(icons.app_logo(64, self.theme.accent)))
         self._titelleiste_faerben()
+
+    def _kanten_weich_machen(self):
+        """Die Glaettungsvorgabe nachziehen.
+
+        Die Stilvorlage baut fuer jede Schriftregel eine neue Schrift und
+        laesst dabei alles fallen, was nicht im Blatt steht – auch die
+        Vorgabe, Buchstaben nicht aufs Pixelraster zu zwingen. Deshalb hier
+        hinterher ueber alles gehen, was schon steht.
+        """
+        for w in self.findChildren(QWidget):
+            w.setFont(glaettung(w.font()))
+        self.setFont(glaettung(self.font()))
 
     def _titelleiste_faerben(self):
         """Titelleiste und Fensterrahmen in die App-Farbe bringen.
@@ -981,6 +995,8 @@ class MainWindow(QWidget):
                 if row is not None:
                     row.aktualisieren(it)
                     row.set_gewaehlt(it["key"] in self.targets)
+        # Frisch gebaute Zeilen kennen die Glaettungsvorgabe noch nicht
+        self._kanten_weich_machen()
         QTimer.singleShot(0, self._fade)
         QTimer.singleShot(0, self._hoehe_anpassen)
 

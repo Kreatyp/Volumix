@@ -82,6 +82,36 @@ def schrift():
     return SCHRIFT_ERSATZ
 
 
+def glaettung(f):
+    """Buchstaben nicht aufs Pixelraster zwingen.
+
+    Qt richtet Text unter Windows von sich aus an ganzen Pixeln aus. Das
+    macht ihn gestochen, laesst aber die Rundungen eckig werden – man sieht
+    es an den aeusseren Kanten. Browser und Electron-Programme verzichten
+    darauf und lassen die Kanten weich auslaufen; deshalb wirkt Text dort
+    „glatter“, obwohl er unschaerfer ist.
+
+    Gemessen an denselben zwei Zeilen: 27 Grauabstufungen statt 13, und ein
+    Drittel mehr Pixel im weichen Uebergangsbereich.
+    """
+    from PySide6.QtGui import QFont
+    f.setHintingPreference(QFont.PreferNoHinting)
+    return f
+
+
+def basis_schrift():
+    """Die Grundschrift der Anwendung – traegt die Glaettungsvorgabe.
+
+    Wird ueber QApplication.setFont gesetzt. Die Familie steht trotzdem in
+    der Stilvorlage: Ohne sie dort faellt Qt bei jedem abweichenden Gewicht
+    auf eine fremde Familie zurueck (siehe test_schalter).
+    """
+    from PySide6.QtGui import QFont
+    f = QFont(schrift())
+    f.setPixelSize(13)
+    return glaettung(f)
+
+
 def _rgb(c):
     c = c.lstrip("#")
     return (int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16))

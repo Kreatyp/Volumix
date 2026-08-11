@@ -207,6 +207,25 @@ for seite in (0, 1):
 f._seite(0)
 pruefe("keine Beschriftung faellt auf eine fremde Schrift zurueck",
        not falsch, True)
+
+# Buchstaben duerfen nicht aufs Pixelraster gezwungen werden – sonst werden
+# die Rundungen eckig. Die Stilvorlage baut fuer jede Schriftregel eine neue
+# Schrift und laesst die Vorgabe fallen, deshalb zieht das Fenster sie
+# hinterher nach. Ohne diese Pruefung faellt es niemandem auf.
+from PySide6.QtGui import QFont                                  # noqa: E402
+hart = []
+for seite in (0, 1):
+    f._seite(seite)
+    app.processEvents()
+    for lbl in f.findChildren(QLabel):
+        if lbl.text() and lbl.isVisible():
+            if lbl.font().hintingPreference() != QFont.PreferNoHinting:
+                hart.append(lbl.text()[:20])
+f._seite(0)
+pruefe("keine Beschriftung steht hart auf dem Pixelraster", not hart, True)
+if hart:
+    for m in sorted(set(hart))[:4]:
+        print("       " + m)
 if falsch:
     for m in sorted(set(falsch))[:4]:
         print("       " + m)
