@@ -38,6 +38,10 @@ PFADE = {
     "trash": ("M4 7h16 M9 7V4.5h6V7 M6.5 7l1 13h9l1-13 "
               "M10 10.5v6.5 M14 10.5v6.5"),
     "save": ("M5 4h11l3 3v13H5z M8 4v6h7V4 M8 20v-6h8v6"),
+    # Lautstaerke angleichen: eine Welle, die von gross nach klein wird –
+    # laute Stellen werden heruntergezogen, leise bleiben.
+    "angleichen": ("M3 12h2 M7 5.5v13 M11 8.5v7 M15 10.5v3 M19 11.4v1.2"
+                   " M21 12h0.5"),
 }
 
 # Lautsprecher: Kegel plus bis zu drei Wellen

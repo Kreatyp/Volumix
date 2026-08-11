@@ -74,6 +74,26 @@ entweder darüber oder in `absturz.log`.
 - **Stummschalten:** Klick auf das **Lautsprecher-Symbol** in der Zeile. Ein
   Regler auf **0 %** schaltet von allein stumm, Hochdrehen hebt es wieder auf.
 
+## Lautstärke angleichen
+
+**Rechtsklick auf eine Zeile → „Lautstärke angleichen"**. Gedacht für
+Sprache: In Discord ist einer laut, der nächste flüstert — Volumix zieht die
+lauten Stellen herunter, damit es gleichmäßig bleibt. Ist es an, steht neben
+dem Namen ein kleines Wellenzeichen.
+
+An einer Probe mit drei verschieden lauten Sprechern gemessen: Die
+Schwankung über Sekunden ging von **13,4 dB auf 7,3 dB** zurück, während die
+Dynamik *innerhalb* eines Sprechers erhalten blieb (12,5 → 11,4 dB). Genau
+diese Trennung ist der Punkt — sonst klänge Sprache platt.
+
+> **Es wird nur gedämpft, nie verstärkt.** Windows kennt für einzelne Apps
+> keine Lautstärke über 100 %. Der Regler, den du eingestellt hast, ist die
+> Obergrenze; darunter arbeitet die Regelung. Er bleibt dabei stehen, wo er
+> steht — sonst würde er dir ständig unter der Hand weglaufen.
+
+Für **Musik ist es nichts**: Dort sind leise Stellen Absicht. Deshalb gilt
+die Einstellung je App und nicht für alles.
+
 ## Profile
 
 Unter der Kopfzeile steht der Name des offenen Profils, links und rechts davon

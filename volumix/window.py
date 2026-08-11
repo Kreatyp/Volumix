@@ -325,6 +325,7 @@ class MainWindow(QWidget):
         self.theme = Theme(self.cfg["mode"], self.cfg["accent"])
         self.targets = set(self.cfg["targets"])
         self.hidden = set(self.cfg["hidden"] or [])
+        self.angleichen = set(self.cfg["angleichen"] or [])
         self.known = dict.fromkeys(self.cfg["known"] or [], "")
         self.exes = dict(self.cfg["exes"] or {})
         self.profiles = dict(self.cfg["profiles"] or {})
@@ -368,6 +369,7 @@ class MainWindow(QWidget):
         self.engine.switch_mode = self.cfg["switch_mode"]
         self.engine.meters_an = self.cfg["meters"]
         self.engine.ton_am_anschlag = self.cfg["ton_anschlag"]
+        self.engine.angleichen = set(self.angleichen)
         self._tempo_uebernehmen()
 
         self.apps_bereit.connect(self._apps_uebernehmen)
@@ -981,11 +983,13 @@ class MainWindow(QWidget):
                 self.inhalt_lay.insertWidget(pos, self._abschnitt(titel))
                 pos += 1
                 for it in gruppe:
+                    it = dict(it, angleichen=it["key"] in self.angleichen)
                     row = MixerRow(it, it["key"] in self.targets, self.theme,
                                    self.cfg["meters"])
                     row.toggled.connect(self._ziel_umschalten)
                     row.volume_changed.connect(self._regler_bewegt)
                     row.mute_clicked.connect(self._stumm)
+                    row.angleichen_clicked.connect(self._angleichen_setzen)
                     self.rows[it["key"]] = row
                     self.inhalt_lay.insertWidget(pos, row)
                     pos += 1
@@ -993,7 +997,8 @@ class MainWindow(QWidget):
             for it in items:
                 row = self.rows.get(it["key"])
                 if row is not None:
-                    row.aktualisieren(it)
+                    row.aktualisieren(dict(
+                        it, angleichen=it["key"] in self.angleichen))
                     row.set_gewaehlt(it["key"] in self.targets)
         # Frisch gebaute Zeilen kennen die Glaettungsvorgabe noch nicht
         self._kanten_weich_machen()
@@ -1151,6 +1156,20 @@ class MainWindow(QWidget):
         soll = wert <= 0.005
         if soll != row.muted:
             self._stumm(key, soll)
+
+    def _angleichen_setzen(self, key, an):
+        """Lautstaerke dieser App angleichen – oder eben nicht mehr."""
+        if an:
+            self.angleichen.add(key)
+        else:
+            self.angleichen.discard(key)
+        self.cfg["angleichen"] = sorted(self.angleichen)
+        self.engine.job("angleichen", key, an)
+        row = self.rows.get(key)
+        if row is not None:
+            row.set_angleichen(an)
+        self._melden(T("angleichen_an") if an else T("angleichen"))
+        self._speichern()
 
     def _stumm(self, key, an):
         row = self.rows.get(key)

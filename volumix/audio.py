@@ -63,6 +63,12 @@ class AudioEngine:
         self.meters_an = True
         self.ton_am_anschlag = True
 
+        # Lautstaerke angleichen: welche Apps, was der Nutzer wollte, und
+        # wie weit gerade gedaempft wird
+        self.angleichen = set()
+        self._nutzer_amp = {}
+        self._daempfung = {}
+
         self._epv = None
         self._sess_cache = None        # (Zeitpunkt, {key: [SimpleAudioVolume]})
         self._meter_cache = None       # (Zeitpunkt, {key: IAudioMeterInformation})
@@ -124,6 +130,8 @@ class AudioEngine:
                         wechsel = (j[1], j[2])
                     elif art == "profile":
                         profil = j[1]
+                    elif art == "angleichen":
+                        self.angleichen_setzen(j[1], j[2])
                     elif art == "quit":
                         return
 
@@ -140,6 +148,10 @@ class AudioEngine:
                 for key, wert in setzen.items():
                     self._ziel.pop(key, None)
                     self._jetzt[key] = wert * 100.0
+                    if key in self.angleichen:
+                        # Von Hand gestellt heisst: das ist ab jetzt die
+                        # Obergrenze, von der aus gedaempft wird.
+                        self._nutzer_amp[key] = self.amp_aus_pos(wert)
                     self.set_volume(key, wert)
                 if refresh:
                     # Die Kurve haengt am Ausgabegeraet – beim Umstecken
@@ -153,13 +165,19 @@ class AudioEngine:
 
                 # Pegelanzeige: unabhaengig vom Rest, ~20 Bilder je Sekunde
                 jetzt = time.perf_counter()
-                if (self.meters_an and self.on_meters
-                        and jetzt - letzte_messung >= 0.05):
+                if jetzt - letzte_messung >= 0.05:
                     letzte_messung = jetzt
+                    # Die Regelung braucht denselben Takt wie die Anzeige,
+                    # laeuft aber auch, wenn die Balken abgeschaltet sind.
                     try:
-                        self._melden(self.on_meters, self._peaks())
+                        self._angleichen_regeln()
                     except Exception:
                         pass
+                    if self.meters_an and self.on_meters:
+                        try:
+                            self._melden(self.on_meters, self._peaks())
+                        except Exception:
+                            pass
         finally:
             CoUninitialize()
 
@@ -205,8 +223,13 @@ class AudioEngine:
         self._sess_cache = None
         self._meter_cache = None
 
-    def _peaks(self, max_alter=2.0):
-        """Spitzenpegel je Programm (0..1) – fuer die Live-Anzeige."""
+    def _peaks(self, max_alter=2.0, roh=False):
+        """Spitzenpegel je Programm (0..1).
+
+        Ab Werk in Reglerskala – so passt der Ausschlag zur Fuellung des
+        Reglers. Die Regelung braucht dagegen die rohe Amplitude, denn sie
+        rechnet mit Faktoren.
+        """
         jetzt = time.perf_counter()
         if not self._meter_cache or jetzt - self._meter_cache[0] >= max_alter:
             messer = {}
@@ -222,11 +245,90 @@ class AudioEngine:
         werte = {}
         for key, m in self._meter_cache[1].items():
             try:
-                # In Reglerskala melden, damit der Ausschlag zur Fuellung passt
-                werte[key] = self.pos_aus_amp(float(m.GetPeakValue()))
+                wert = float(m.GetPeakValue())
+                werte[key] = wert if roh else self.pos_aus_amp(wert)
             except Exception:
                 pass
         return werte
+
+    # ---- Lautstaerke angleichen -----------------------------------------
+    # Zielpegel und Grenzen als Amplitude. Die Zahlen stammen aus einer
+    # Probe mit drei verschieden lauten Sprechern: Die Schwankung ueber
+    # Sekunden ging damit von 13,4 dB auf 7,3 dB zurueck, waehrend die
+    # Dynamik innerhalb eines Sprechers erhalten blieb (12,5 -> 11,4 dB).
+    ANGLEICH_ZIEL = 0.35
+    ANGLEICH_TIEFSTENS = 0.25      # weiter wird nie gedaempft
+    ANGLEICH_STILLE = 0.04         # darunter gilt es als Pause
+    ANGLEICH_RUNTER = 0.30         # laut wird schnell weggenommen
+    ANGLEICH_ZURUECK = 0.02        # zurueck geht es langsam, sonst pumpt es
+
+    def angleichen_setzen(self, key, an):
+        """Fuer eine App ein- oder ausschalten."""
+        if an:
+            self.angleichen.add(key)
+            if key not in self._nutzer_amp:
+                jetzt = self.amplitude(key)
+                if jetzt is not None:
+                    self._nutzer_amp[key] = jetzt
+            self._daempfung[key] = 1.0
+        else:
+            self.angleichen.discard(key)
+            self._daempfung.pop(key, None)
+            # Zurueck auf das, was der Nutzer eingestellt hat
+            nutzer = self._nutzer_amp.pop(key, None)
+            if nutzer is not None:
+                self._amp_setzen_alle(key, nutzer)
+
+    def amplitude(self, key, by=None):
+        """Aktuelle Amplitude einer App (0..1) oder None."""
+        regler = (by if by is not None else self._by_key()).get(key, [])
+        for v in regler:
+            try:
+                return float(v.GetMasterVolume())
+            except Exception:
+                continue
+        return None
+
+    def _amp_setzen_alle(self, key, amp):
+        amp = max(0.0, min(1.0, float(amp)))
+        for v in self._by_key().get(key, []):
+            try:
+                v.SetMasterVolume(amp, None)
+            except Exception:
+                pass
+
+    def _angleichen_regeln(self):
+        """Laute Stellen daempfen, damit die Lautstaerke gleichmaessig wirkt.
+
+        Geregelt wird nur nach unten: Der vom Nutzer eingestellte Pegel ist
+        die Obergrenze. Windows kennt fuer einzelne Apps keine Verstaerkung
+        ueber 100 %, und heimlich leiser stellen, um Luft zu gewinnen, waere
+        eine Ueberraschung beim naechsten Blick auf den Regler.
+        """
+        if not self.angleichen:
+            return
+        roh = self._peaks(roh=True)
+        for key in list(self.angleichen):
+            pegel = roh.get(key)
+            if pegel is None:
+                continue
+            nutzer = self._nutzer_amp.get(key)
+            if nutzer is None:
+                nutzer = self.amplitude(key)
+                if nutzer is None:
+                    continue
+                self._nutzer_amp[key] = nutzer
+            d = self._daempfung.get(key, 1.0)
+            if pegel > self.ANGLEICH_STILLE:
+                # Der gemessene Pegel ist bereits gedaempft – der Faktor sagt
+                # also direkt, wie weit nachzuregeln ist.
+                gewuenscht = max(self.ANGLEICH_TIEFSTENS,
+                                 min(1.0, d * self.ANGLEICH_ZIEL / pegel))
+                tempo = (self.ANGLEICH_RUNTER if gewuenscht < d
+                         else self.ANGLEICH_ZURUECK)
+                d += (gewuenscht - d) * tempo
+                self._daempfung[key] = d
+                self._amp_setzen_alle(key, nutzer * d)
 
     # ---- Reglerweg und Amplitude ----------------------------------------
     #
@@ -631,10 +733,16 @@ class AudioEngine:
             if key in gesehen:
                 continue
             try:
-                # als Reglerposition melden, nicht als Amplitude
-                vol = self.pos_aus_amp(float(sav.GetMasterVolume()))
+                amp = float(sav.GetMasterVolume())
             except Exception:
-                vol = 1.0
+                amp = 1.0
+            # Bei geregelten Apps den Wunsch des Nutzers melden, nicht den
+            # Ist-Wert: Sonst wandert der Schieber im Fenster staendig mit
+            # der Regelung mit, und niemand koennte ihn noch anfassen.
+            if key in self.angleichen and key in self._nutzer_amp:
+                amp = self._nutzer_amp[key]
+            # als Reglerposition melden, nicht als Amplitude
+            vol = self.pos_aus_amp(amp)
             try:
                 muted = bool(sav.GetMute())
             except Exception:

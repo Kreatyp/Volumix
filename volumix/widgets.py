@@ -533,6 +533,7 @@ class MixerRow(QWidget):
     toggled = Signal(str, bool)          # key, gewaehlt
     volume_changed = Signal(str, float, bool)   # key, 0..1, endgueltig
     mute_clicked = Signal(str, bool)
+    angleichen_clicked = Signal(str, bool)
 
     def __init__(self, item, gewaehlt, theme, meter_an=True, parent=None):
         super().__init__(parent)
@@ -576,6 +577,14 @@ class MixerRow(QWidget):
         self.name.setObjectName("NameGewaehlt" if self._gewaehlt else "Name")
         self.name.setMinimumWidth(50)
         lay.addWidget(self.name, 1)
+
+        # Zeichen fuer „wird angeglichen“. Ohne das bewegt sich die Lautstaerke
+        # von selbst und niemand weiss, warum.
+        self.angleich_zeichen = QLabel()
+        self.angleich_zeichen.setFixedSize(16, 16)
+        self.angleich_zeichen.setToolTip(T("angleichen_an"))
+        self.angleich_zeichen.hide()
+        lay.addWidget(self.angleich_zeichen)
         lay.addSpacing(10)
 
         self.lautsprecher = QPushButton()
@@ -606,8 +615,10 @@ class MixerRow(QWidget):
 
         self._exe = item.get("exe")
         self._name_text = item["name"]
+        self._angleichen = bool(item.get("angleichen"))
         self.symbol_setzen()
         self._beschriften()
+        self._angleich_zeichnen()
 
     # ---- Aussehen --------------------------------------------------------
     def get_balken(self):
@@ -672,6 +683,36 @@ class MixerRow(QWidget):
                                  stumm=self.muted))
         self.lautsprecher.setIconSize(QSize(20, 20))
 
+    def _angleich_zeichnen(self):
+        self.angleich_zeichen.setVisible(self._angleichen)
+        if self._angleichen:
+            self.angleich_zeichen.setPixmap(icons.pixmap(
+                "angleichen", 16, self.theme.accent, self.devicePixelRatioF()))
+
+    def set_angleichen(self, an):
+        an = bool(an)
+        if an == self._angleichen:
+            return
+        self._angleichen = an
+        self._angleich_zeichnen()
+
+    def contextMenuEvent(self, e):
+        """Rechtsklick: was diese eine App betrifft.
+
+        Die Zeile ist voll; ein weiterer Knopf haette sie ueberladen. Was
+        man einmal einstellt und dann in Ruhe laesst, gehoert ins Menue.
+        """
+        from PySide6.QtWidgets import QMenu
+        m = QMenu(self)
+        eintrag = m.addAction(T("angleichen"))
+        eintrag.setCheckable(True)
+        eintrag.setChecked(self._angleichen)
+        eintrag.setToolTip(T("angleichen_hilfe"))
+        m.setToolTipsVisible(True)
+        gewaehlt = m.exec(e.globalPos())
+        if gewaehlt is eintrag:
+            self.angleichen_clicked.emit(self.key, not self._angleichen)
+
     def _wert_anzeigen(self, wert):
         if not self.muted:
             self.prozent.set_wert(wert)
@@ -692,6 +733,7 @@ class MixerRow(QWidget):
         self.prozent.update()
         self.update()
         self.symbol_setzen()
+        self._angleich_zeichnen()
 
     # ---- Zustand ---------------------------------------------------------
     def set_gewaehlt(self, an):
@@ -750,6 +792,7 @@ class MixerRow(QWidget):
             self._exe = item["exe"]
             self.symbol_setzen()
         self.set_muted(bool(item.get("muted")))
+        self.set_angleichen(item.get("angleichen"))
         self.set_volume(item["volume"])
 
     # ---- Maus ------------------------------------------------------------

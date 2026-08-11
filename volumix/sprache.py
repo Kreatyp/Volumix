@@ -23,6 +23,21 @@ TEXTE = {
     "suchen": ("Suchen …", "Search …"),
     "stumm": ("stumm", "muted"),
     "stumm_schalten": ("Stumm schalten", "Mute"),
+    "angleichen": ("Lautstärke angleichen", "Even out volume"),
+    "angleichen_an": ("Lautstärke wird angeglichen",
+                      "Volume is being evened out"),
+    "angleichen_hilfe": (
+        "Zieht laute Stellen herunter, damit die Lautstärke gleichmäßig "
+        "bleibt — gedacht für Sprache, wo einer laut und der nächste leise "
+        "ist.\n\n"
+        "Der Regler bleibt dabei stehen, wo du ihn hingestellt hast: Er ist "
+        "die Obergrenze, darunter arbeitet die Regelung.\n\n"
+        "Für Musik ist es nichts — dort sind leise Stellen Absicht.",
+        "Pulls loud parts down so the volume stays even — meant for speech, "
+        "where one person is loud and the next one quiet.\n\n"
+        "The slider stays where you put it: it is the upper limit, and the "
+        "control works below it.\n\n"
+        "Not for music — there the quiet parts are intended."),
 
     # ---- Statusleiste ----
     "apps_waehlen": ("Apps wählen", "Choose apps"),
