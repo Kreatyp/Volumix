@@ -578,14 +578,23 @@ class MixerRow(QWidget):
         self.name.setMinimumWidth(50)
         lay.addWidget(self.name, 1)
 
-        # Zeichen fuer „wird angeglichen“. Ohne das bewegt sich die Lautstaerke
-        # von selbst und niemand weiss, warum.
-        self.angleich_zeichen = QLabel()
-        self.angleich_zeichen.setFixedSize(16, 16)
-        self.angleich_zeichen.setToolTip(T("angleichen_an"))
-        self.angleich_zeichen.hide()
-        lay.addWidget(self.angleich_zeichen)
-        lay.addSpacing(10)
+        # Knopf fuer „Lautstaerke angleichen“. Er steht auch im ausgeschalteten
+        # Zustand da – blass, aber sichtbar. Vorher lag die Sache in einem
+        # Rechtsklick-Menue und war damit praktisch nicht auffindbar.
+        self.angleich_knopf = QPushButton()
+        self.angleich_knopf.setObjectName("Flach")
+        self.angleich_knopf.setFixedSize(30, 30)
+        self.angleich_knopf.setCursor(Qt.PointingHandCursor)
+        self.angleich_knopf.clicked.connect(
+            lambda: self.angleichen_clicked.emit(self.key,
+                                                 not self._angleichen))
+        # Nicht bei Gesamtlautstaerke und Systemklaengen: Die Gesamtlautstaerke
+        # hat keinen eigenen Pegel, an dem sich etwas angleichen liesse, und
+        # ein Knopf, der nichts tut, ist schlimmer als keiner.
+        if self.key.startswith("#"):
+            self.angleich_knopf.hide()
+        lay.addWidget(self.angleich_knopf)
+        lay.addSpacing(2)
 
         self.lautsprecher = QPushButton()
         self.lautsprecher.setObjectName("Flach")
@@ -684,10 +693,20 @@ class MixerRow(QWidget):
         self.lautsprecher.setIconSize(QSize(20, 20))
 
     def _angleich_zeichnen(self):
-        self.angleich_zeichen.setVisible(self._angleichen)
-        if self._angleichen:
-            self.angleich_zeichen.setPixmap(icons.pixmap(
-                "angleichen", 16, self.theme.accent, self.devicePixelRatioF()))
+        """Eingeschaltet in der Akzentfarbe, sonst blass.
+
+        Ein Knopf, der nur im eingeschalteten Zustand zu sehen waere, laesst
+        sich nicht einschalten – deshalb ist er immer da, aber zurueckhaltend.
+        """
+        t = self.theme
+        farbe = t.accent if self._angleichen else t.fg
+        pm = icons.pixmap("angleichen", 22, farbe, self.devicePixelRatioF())
+        if not self._angleichen:
+            pm = _verblassen(pm, 0.45)
+        self.angleich_knopf.setIcon(pm)
+        self.angleich_knopf.setIconSize(QSize(22, 22))
+        self.angleich_knopf.setToolTip(T("angleichen_an") if self._angleichen
+                                       else T("angleichen_hilfe"))
 
     def set_angleichen(self, an):
         an = bool(an)
@@ -695,23 +714,6 @@ class MixerRow(QWidget):
             return
         self._angleichen = an
         self._angleich_zeichnen()
-
-    def contextMenuEvent(self, e):
-        """Rechtsklick: was diese eine App betrifft.
-
-        Die Zeile ist voll; ein weiterer Knopf haette sie ueberladen. Was
-        man einmal einstellt und dann in Ruhe laesst, gehoert ins Menue.
-        """
-        from PySide6.QtWidgets import QMenu
-        m = QMenu(self)
-        eintrag = m.addAction(T("angleichen"))
-        eintrag.setCheckable(True)
-        eintrag.setChecked(self._angleichen)
-        eintrag.setToolTip(T("angleichen_hilfe"))
-        m.setToolTipsVisible(True)
-        gewaehlt = m.exec(e.globalPos())
-        if gewaehlt is eintrag:
-            self.angleichen_clicked.emit(self.key, not self._angleichen)
 
     def _wert_anzeigen(self, wert):
         if not self.muted:

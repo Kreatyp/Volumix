@@ -76,23 +76,30 @@ entweder darüber oder in `absturz.log`.
 
 ## Lautstärke angleichen
 
-**Rechtsklick auf eine Zeile → „Lautstärke angleichen"**. Gedacht für
-Sprache: In Discord ist einer laut, der nächste flüstert — Volumix zieht die
-lauten Stellen herunter, damit es gleichmäßig bleibt. Ist es an, steht neben
-dem Namen ein kleines Wellenzeichen.
+Der **Knopf mit den zwei Pfeilen** in jeder Zeile, zwischen Name und
+Lautsprecher. Gedacht für Sprache: In Discord ist einer laut, der nächste
+flüstert — Volumix hebt das Leise an und zieht das Laute herunter. Ist es an,
+leuchtet der Knopf in der Akzentfarbe.
 
-An einer Probe mit drei verschieden lauten Sprechern gemessen: Die
-Schwankung über Sekunden ging von **13,4 dB auf 7,3 dB** zurück, während die
-Dynamik *innerhalb* eines Sprechers erhalten blieb (12,5 → 11,4 dB). Genau
-diese Trennung ist der Punkt — sonst klänge Sprache platt.
+An einem gestellten Gespräch mit drei verschieden lauten Sprechern gemessen:
+Der Unterschied zwischen ihnen ging von **18,0 dB auf 7,3 dB** zurück,
+während die Betonungen *innerhalb* eines Sprechers erhalten blieben (4,8 →
+5,6 dB). Genau diese Trennung ist der Punkt — eine Regelung, die auch den
+Silben hinterherläuft, bügelt Sprache platt.
 
-> **Es wird nur gedämpft, nie verstärkt.** Windows kennt für einzelne Apps
-> keine Lautstärke über 100 %. Der Regler, den du eingestellt hast, ist die
-> Obergrenze; darunter arbeitet die Regelung. Er bleibt dabei stehen, wo er
-> steht — sonst würde er dir ständig unter der Hand weglaufen.
+> **Der Regler ist die Mitte, um die herum geregelt wird** — nicht die
+> Obergrenze. Er bleibt im Fenster stehen, wo er steht: Was läuft, ist eine
+> Regelung und keine Verstellung.
+>
+> Nach oben ist bei **100 %** Schluss, mehr lässt Windows für eine App nicht
+> zu. Steht der Regler schon ganz oben, kann Volumix nur noch dämpfen und
+> sagt das beim Einschalten auch. Ein Stück Luft nach oben lohnt sich:
+> Bei halb aufgedrehtem Regler kam die Schwankung im selben Versuch auf
+> 7,3 dB herunter, ohne diese Luft nur auf 12,5 dB.
 
 Für **Musik ist es nichts**: Dort sind leise Stellen Absicht. Deshalb gilt
-die Einstellung je App und nicht für alles.
+die Einstellung je App und nicht für alles. Bei *Gesamtlautstärke* und
+*Systemklängen* gibt es den Knopf gar nicht erst.
 
 ## Profile
 
@@ -127,14 +134,19 @@ zweites Programm.
 
 Über das **Zahnrad oben rechts**, zurück über den **Pfeil oben links**.
 
-Die Einstellungen liegen in vier Bereichen, die oben umschaltbar sind:
-**Design · Steuerung · Anzeige · Allgemein**. Jeder passt ohne Scrollen ins
-Fenster, und das Fenster fährt beim Wechsel auf die passende Höhe.
+Die Einstellungen liegen in drei Bereichen, die oben umschaltbar sind:
+**Allgemein · Steuerung · Anzeige**. Jeder passt ohne Scrollen ins Fenster,
+und das Fenster fährt beim Wechsel auf die passende Höhe.
 
-### Design
+### Allgemein
 
-**Modus** (Dunkel/Hell) und **Farbe** (12 Akzentfarben) sind frei kombinierbar
-und wirken sofort. Schneller geht der Modus über das **Mond/Sonne-Symbol**.
+**Design** steht oben: **Dunkel/Hell** und **Farbe** (12 Akzentfarben) sind
+frei kombinierbar und wirken sofort. Schneller geht der Modus über das
+**Mond/Sonne-Symbol**.
+
+Darunter **Sprache** (Deutsch oder English – die Oberfläche baut sich beim
+Wechsel neu auf und ist sofort umgestellt) und **Mit Windows starten**, das
+einen Autostart-Eintrag anlegt.
 
 ### Steuerung
 
@@ -145,12 +157,6 @@ und wirken sofort. Schneller geht der Modus über das **Mond/Sonne-Symbol**.
 - **Geschwindigkeit** (10–100 %) – wie weit eine Rastung regelt. Ein Wert
   genügt für Gesamt und Apps, weil beide auf derselben Kurve liegen.
 - **Titel per Mehrfachdruck wechseln** – siehe unten.
-
-### Allgemein
-
-**Sprache** (Deutsch oder English – die Oberfläche baut sich beim Wechsel neu
-auf und ist sofort umgestellt) und **Mit Windows starten**, das einen
-Autostart-Eintrag anlegt.
 
 #### Titel per Mehrfachdruck wechseln
 

@@ -307,7 +307,7 @@ class MainWindow(QWidget):
     # Reihenfolge der Reiter in den Einstellungen. Wer sie umstellt, aendert
     # nur diese Zeile – angesprochen werden die Bereiche ueber ihren Namen,
     # nicht ueber ihre Stelle.
-    BEREICHE = ("allgemein", "design", "steuerung", "anzeige")
+    BEREICHE = ("allgemein", "steuerung", "anzeige")
 
     apps_bereit = Signal(list)
     volume_bereit = Signal(str, int)
@@ -552,15 +552,14 @@ class MainWindow(QWidget):
                                           auf_karte=False)
         roll.verticalScrollBar().valueChanged.connect(self._einst_fade)
 
-        # Vier Bereiche statt einer langen Liste: Vorher standen sechzehn
-        # Zeilen untereinander, alle im selben Muster. Da fuehrt nichts das
-        # Auge, und man scrollt an dem vorbei, was man sucht.
+        # Bereiche statt einer langen Liste: Vorher standen sechzehn Zeilen
+        # untereinander, alle im selben Muster. Da fuehrt nichts das Auge,
+        # und man scrollt an dem vorbei, was man sucht.
         self.reiter = _Reiter([T(n) for n in self.BEREICHE], self.theme)
         self.reiter.gewechselt.connect(self._bereich_zeigen)
         lay.insertWidget(1, self.reiter)
 
-        bauer = {"design": self._bereich_design,
-                 "steuerung": self._bereich_steuerung,
+        bauer = {"steuerung": self._bereich_steuerung,
                  "anzeige": self._bereich_anzeige,
                  "allgemein": self._bereich_allgemein}
         self._bereiche = [bauer[n]() for n in self.BEREICHE]
@@ -574,7 +573,7 @@ class MainWindow(QWidget):
         ilay.addStretch(1)
         return seite
 
-    # ---- Die vier Bereiche ----------------------------------------------
+    # ---- Die drei Bereiche ----------------------------------------------
     def _bereich(self, *karten):
         """Huelle um die Karten eines Bereichs."""
         w = QWidget()
@@ -603,31 +602,6 @@ class MainWindow(QWidget):
         reihe.addStretch(1)
         karte.lay.addLayout(reihe)
         return gruppe
-
-    def _bereich_design(self):
-        # Modus und Farbe in einer Karte: zwei Karten mit je einer Zeile sind
-        # mehr Rahmen als Inhalt.
-        k = Karte(self.theme, T("modus"))
-        self.modus_gruppe = self._chipreihe(
-            k, (("dark", T("dunkel")), ("light", T("hell"))),
-            self.theme.mode, self._modus_setzen)
-
-        titel = QLabel(T("farbe"))
-        titel.setObjectName("Ueberschrift")
-        k.lay.addSpacing(6)
-        k.lay.addWidget(titel)
-        self.farbknoepfe = {}
-        for i in range(0, len(PALETTE), 6):
-            r = QHBoxLayout()
-            r.setSpacing(9)
-            for key, name, dunkel, hell in PALETTE[i:i + 6]:
-                b = _Farbpunkt(key, self.theme, name)
-                b.clicked.connect(functools.partial(self._farbe_setzen, key))
-                self.farbknoepfe[key] = b
-                r.addWidget(b)
-            r.addStretch(1)
-            k.lay.addLayout(r)
-        return self._bereich(k)
 
     def _bereich_steuerung(self):
         k = Karte(self.theme, T("eingabe"))
@@ -706,6 +680,33 @@ class MainWindow(QWidget):
         return self._bereich(k, o, t)
 
     def _bereich_allgemein(self):
+        # Das Aussehen stand frueher in einem eigenen Reiter. Fuer zwei Zeilen
+        # war das zu viel Aufwand fuers Auge – jetzt ist es die erste Karte
+        # hier, und es bleibt ein Reiter weniger zu lesen.
+        # Ohne Zwischenueberschrift ueber „Dunkel/Hell“: Direkt unter der
+        # Karte DESIGN stuende sonst MODUS, und zwei Ueberschriften
+        # uebereinander sagen weniger als eine.
+        d = Karte(self.theme, T("design"))
+        self.modus_gruppe = self._chipreihe(
+            d, (("dark", T("dunkel")), ("light", T("hell"))),
+            self.theme.mode, self._modus_setzen)
+
+        titel = QLabel(T("farbe"))
+        titel.setObjectName("Ueberschrift")
+        d.lay.addSpacing(6)
+        d.lay.addWidget(titel)
+        self.farbknoepfe = {}
+        for i in range(0, len(PALETTE), 6):
+            r = QHBoxLayout()
+            r.setSpacing(9)
+            for key, name, dunkel, hell in PALETTE[i:i + 6]:
+                b = _Farbpunkt(key, self.theme, name)
+                b.clicked.connect(functools.partial(self._farbe_setzen, key))
+                self.farbknoepfe[key] = b
+                r.addWidget(b)
+            r.addStretch(1)
+            d.lay.addLayout(r)
+
         k = Karte(self.theme, T("sprache_abschnitt"))
         self.sprach_gruppe = self._chipreihe(
             k, SPRACHEN, self.cfg["sprache"], self._sprache_setzen)
@@ -714,7 +715,7 @@ class MainWindow(QWidget):
         self._schalter_zeile(
             s, T("mit_windows_starten"), config.get_autostart(),
             lambda an: config.set_autostart(an))
-        return self._bereich(k, s)
+        return self._bereich(d, k, s)
 
     def bereich_nr(self, name):
         """Stelle eines Bereichs – Aufrufer muessen die Reihenfolge nicht
@@ -805,7 +806,9 @@ class MainWindow(QWidget):
                 b.setIcon(icons.pixmap(name, RUND_SYMBOL, self.theme.muted, dpr))
                 b.setIconSize(QSize(RUND_SYMBOL, RUND_SYMBOL))
         for b in getattr(self, "_flachknoepfe", []):
-            b.setIcon(icons.pixmap(b._symbol, 17, self.theme.muted, dpr))
+            sinn = getattr(b, "_sinn", 17)
+            b.setIcon(icons.pixmap(b._symbol, sinn, self.theme.muted, dpr))
+            b.setIconSize(QSize(sinn, sinn))
         for b in getattr(self, "_hilfe_knoepfe", []):
             b.setIcon(icons.pixmap("help", 16, self.theme.muted, dpr))
         for punkt in getattr(self, "farbknoepfe", {}).values():
@@ -1168,7 +1171,15 @@ class MainWindow(QWidget):
         row = self.rows.get(key)
         if row is not None:
             row.set_angleichen(an)
-        self._melden(T("angleichen_an") if an else T("angleichen"))
+        if not an:
+            self._melden(T("angleichen"))
+        elif row is not None and row.regler.value() >= 90:
+            # Angehoben werden kann nur, was unter 100 % steht – darueber
+            # laesst Windows fuer eine App nichts zu. Wer den Regler ganz
+            # oben hat, wuerde sonst nur daempfen und sich wundern.
+            self._melden(T("angleichen_eng"))
+        else:
+            self._melden(T("angleichen_an"))
         self._speichern()
 
     def _stumm(self, key, an):
@@ -1278,7 +1289,8 @@ class MainWindow(QWidget):
         z.setContentsMargins(6, 4, 6, 4)
         z.setSpacing(2)
 
-        self.btn_prof_zurueck = self._flachknopf("back", T("profil_zurueck"))
+        self.btn_prof_zurueck = self._flachknopf("back", T("profil_zurueck"),
+                                                 gross=True)
         self.btn_prof_zurueck.clicked.connect(lambda: self._profil_blaettern(-1))
         z.addWidget(self.btn_prof_zurueck)
 
@@ -1303,7 +1315,8 @@ class MainWindow(QWidget):
         self.btn_prof_weg.hide()
         z.addWidget(self.btn_prof_weg)
 
-        self.btn_prof_vor = self._flachknopf("vor", T("profil_vor"))
+        self.btn_prof_vor = self._flachknopf("vor", T("profil_vor"),
+                                             gross=True)
         self.btn_prof_vor.clicked.connect(lambda: self._profil_blaettern(1))
         z.addWidget(self.btn_prof_vor)
 
@@ -1314,15 +1327,24 @@ class MainWindow(QWidget):
         self._profilleiste_auffrischen()
         return leiste
 
-    def _flachknopf(self, symbol, tooltip):
+    def _flachknopf(self, symbol, tooltip, gross=False):
+        """Flacher Knopf in der Profilleiste.
+
+        Die beiden Blaetterpfeile sind `gross`: Sie werden am haeufigsten
+        gebraucht und lagen mit 30 px unter dem, was man im Vorbeigehen
+        trifft. Papierkorb und Plus bleiben klein – die sollen nicht
+        einladen.
+        """
+        kante, sinn = (42, 24) if gross else (30, 17)
         b = QPushButton()
         b.setObjectName("Flach")
-        b.setFixedSize(30, 30)
+        b.setFixedSize(kante, kante)
         b.setCursor(Qt.PointingHandCursor)
         b.setToolTip(tooltip)
-        b.setIcon(icons.pixmap(symbol, 17, self.theme.muted))
-        b.setIconSize(QSize(17, 17))
+        b.setIcon(icons.pixmap(symbol, sinn, self.theme.muted))
+        b.setIconSize(QSize(sinn, sinn))
         b._symbol = symbol
+        b._sinn = sinn
         self._flachknoepfe.append(b)
         return b
 

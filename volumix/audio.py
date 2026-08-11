@@ -63,11 +63,13 @@ class AudioEngine:
         self.meters_an = True
         self.ton_am_anschlag = True
 
-        # Lautstaerke angleichen: welche Apps, was der Nutzer wollte, und
-        # wie weit gerade gedaempft wird
+        # Lautstaerke angleichen: welche Apps, was der Nutzer wollte, wie weit
+        # gerade gedaempft wird, und die beiden Zeitebenen der Messung
         self.angleichen = set()
         self._nutzer_amp = {}
         self._daempfung = {}
+        self._kurz = {}                # geglaetteter Pegel, Silben raus
+        self._bezug = {}               # wie laut die App ueblicherweise ist
 
         self._epv = None
         self._sess_cache = None        # (Zeitpunkt, {key: [SimpleAudioVolume]})
@@ -252,15 +254,51 @@ class AudioEngine:
         return werte
 
     # ---- Lautstaerke angleichen -----------------------------------------
-    # Zielpegel und Grenzen als Amplitude. Die Zahlen stammen aus einer
-    # Probe mit drei verschieden lauten Sprechern: Die Schwankung ueber
-    # Sekunden ging damit von 13,4 dB auf 7,3 dB zurueck, waehrend die
-    # Dynamik innerhalb eines Sprechers erhalten blieb (12,5 -> 11,4 dB).
-    ANGLEICH_ZIEL = 0.35
-    ANGLEICH_TIEFSTENS = 0.25      # weiter wird nie gedaempft
-    ANGLEICH_STILLE = 0.04         # darunter gilt es als Pause
-    ANGLEICH_RUNTER = 0.30         # laut wird schnell weggenommen
-    ANGLEICH_ZURUECK = 0.02        # zurueck geht es langsam, sonst pumpt es
+    #
+    # Der Pegelmesser von Windows zeigt den Ton, BEVOR der Regler der App
+    # darauf wirkt – nachgemessen: derselbe Ton ergibt 0.5000, ob die App auf
+    # 100 % oder auf 10 % steht. Was hier gemessen wird, ist also die Quelle
+    # selbst und nicht das Ergebnis der eigenen Regelung. Ein Gegenkoppeln
+    # („immer noch zu laut, also weiter runter“) wuerde deshalb ins Leere
+    # laufen und bis zum Anschlag durchdrehen.
+    #
+    # Stattdessen zwei Zeitebenen, denn zwei verschiedene Dinge schwanken:
+    #   kurz   – ueber ein paar Zehntelsekunden geglaettet. Nimmt die Silben
+    #            heraus; ohne das wuerde jede Betonung eingeebnet und Sprache
+    #            klaenge tot.
+    #   Bezug  – ueber viele Sekunden. So laut ist diese App fuer gewoehnlich.
+    #            Ein einzelner lauter Sprecher zieht ihn nicht mit hoch, sonst
+    #            gaebe es nichts mehr zu daempfen.
+    # Gedaempft wird das Verhaeltnis der beiden: Wer lauter ist als ueblich,
+    # kommt auf das uebliche Mass herunter.
+    #
+    # Ein absoluter Zielpegel stand hier vorher und war falsch: Wie laut eine
+    # App aussteuert, weiss man vorher nicht – Discord liegt weit unter einem
+    # Spiel. Ein fester Wert regelt bei der einen nie und bei der anderen
+    # dauernd.
+    # Geregelt wird in beide Richtungen. Nur zu daempfen klingt zunaechst
+    # vernuenftig – der eingestellte Regler bliebe die Obergrenze –, bringt
+    # aber kaum etwas: Am selben gestellten Gespraech kam die Schwankung so
+    # nur von 18,0 auf 12,5 dB herunter, mit Anheben auf 7,3 dB. Der Grund
+    # ist einfach: Ein leiser Sprecher bleibt leise, wenn man ihn nicht
+    # anheben darf, und er allein haelt die Spanne offen.
+    #
+    # Die harte Grenze bleibt: Windows kennt fuer eine App nichts ueber
+    # 100 %. Steht der Regler schon dort, ist nach oben nichts mehr frei –
+    # darauf weist das Fenster beim Einschalten hin.
+    # Die Glaettung ist der eine Wert, an dem beide Ziele gegeneinander
+    # stehen: Traeger heisst treuere Betonungen, flinker heisst gleichmaessi-
+    # gere Lautstaerke. Gemessen ueber drei Gespraeche (Spanne / Betonungen
+    # nachher zu vorher): 0,10 -> 7,9 dB bei 1,25 | 0,15 -> 7,3 bei 1,15 |
+    # 0,22 -> 6,8 bei 1,11 | 0,30 -> 6,4 bei 1,05 | 0,45 -> 6,0 bei 0,99.
+    # Ab 0,30 faengt die Regelung an, die Silben selbst einzuebnen.
+    ANGLEICH_KURZ = 0.22           # Glaettung der Messung   (~0,2 s)
+    ANGLEICH_BEZUG = 0.0025        # Nachfuehren des Bezugs  (~20 s)
+    ANGLEICH_TIEFSTENS = 0.2       # weiter als -14 dB wird nie gedaempft
+    ANGLEICH_HOECHSTENS = 3.0      # und nie mehr als +9,5 dB angehoben
+    ANGLEICH_STILLE = 0.02         # darunter gilt es als Pause
+    ANGLEICH_RUNTER = 0.5          # laut wird schnell weggenommen
+    ANGLEICH_ZURUECK = 0.08        # zurueck etwas ruhiger, sonst pumpt es
 
     def angleichen_setzen(self, key, an):
         """Fuer eine App ein- oder ausschalten."""
@@ -271,9 +309,13 @@ class AudioEngine:
                 if jetzt is not None:
                     self._nutzer_amp[key] = jetzt
             self._daempfung[key] = 1.0
+            self._kurz.pop(key, None)
+            self._bezug.pop(key, None)
         else:
             self.angleichen.discard(key)
             self._daempfung.pop(key, None)
+            self._kurz.pop(key, None)
+            self._bezug.pop(key, None)
             # Zurueck auf das, was der Nutzer eingestellt hat
             nutzer = self._nutzer_amp.pop(key, None)
             if nutzer is not None:
@@ -298,12 +340,11 @@ class AudioEngine:
                 pass
 
     def _angleichen_regeln(self):
-        """Laute Stellen daempfen, damit die Lautstaerke gleichmaessig wirkt.
+        """Lautes leiser, Leises lauter – damit es gleichmaessig bleibt.
 
-        Geregelt wird nur nach unten: Der vom Nutzer eingestellte Pegel ist
-        die Obergrenze. Windows kennt fuer einzelne Apps keine Verstaerkung
-        ueber 100 %, und heimlich leiser stellen, um Luft zu gewinnen, waere
-        eine Ueberraschung beim naechsten Blick auf den Regler.
+        Der eingestellte Regler ist dabei die Mitte, um die herum geregelt
+        wird, und nicht die Obergrenze. Er bleibt im Fenster stehen, wo er
+        steht: Was hier laeuft, ist eine Regelung und keine Verstellung.
         """
         if not self.angleichen:
             return
@@ -318,17 +359,27 @@ class AudioEngine:
                 if nutzer is None:
                     continue
                 self._nutzer_amp[key] = nutzer
+            if pegel <= self.ANGLEICH_STILLE:
+                continue           # Pause: nichts messen, nichts nachregeln
+            kurz = self._kurz.get(key)
+            kurz = (pegel if kurz is None
+                    else kurz + (pegel - kurz) * self.ANGLEICH_KURZ)
+            self._kurz[key] = kurz
+            bezug = self._bezug.get(key)
+            bezug = (kurz if bezug is None
+                     else bezug + (kurz - bezug) * self.ANGLEICH_BEZUG)
+            self._bezug[key] = bezug
+
+            if nutzer <= 0.0:
+                continue           # stumm oder auf null – da gibt es nichts
+            hoch = min(self.ANGLEICH_HOECHSTENS, 1.0 / nutzer)
             d = self._daempfung.get(key, 1.0)
-            if pegel > self.ANGLEICH_STILLE:
-                # Der gemessene Pegel ist bereits gedaempft – der Faktor sagt
-                # also direkt, wie weit nachzuregeln ist.
-                gewuenscht = max(self.ANGLEICH_TIEFSTENS,
-                                 min(1.0, d * self.ANGLEICH_ZIEL / pegel))
-                tempo = (self.ANGLEICH_RUNTER if gewuenscht < d
-                         else self.ANGLEICH_ZURUECK)
-                d += (gewuenscht - d) * tempo
-                self._daempfung[key] = d
-                self._amp_setzen_alle(key, nutzer * d)
+            gewuenscht = max(self.ANGLEICH_TIEFSTENS, min(hoch, bezug / kurz))
+            tempo = (self.ANGLEICH_RUNTER if gewuenscht < d
+                     else self.ANGLEICH_ZURUECK)
+            d += (gewuenscht - d) * tempo
+            self._daempfung[key] = d
+            self._amp_setzen_alle(key, nutzer * d)
 
     # ---- Reglerweg und Amplitude ----------------------------------------
     #

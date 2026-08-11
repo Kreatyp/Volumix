@@ -27,17 +27,21 @@ TEXTE = {
     "angleichen_an": ("Lautstärke wird angeglichen",
                       "Volume is being evened out"),
     "angleichen_hilfe": (
-        "Zieht laute Stellen herunter, damit die Lautstärke gleichmäßig "
-        "bleibt — gedacht für Sprache, wo einer laut und der nächste leise "
-        "ist.\n\n"
+        "Hebt Leises an und zieht Lautes herunter, damit die Lautstärke "
+        "gleichmäßig bleibt — gedacht für Sprache, wo einer laut und der "
+        "nächste leise ist.\n\n"
         "Der Regler bleibt dabei stehen, wo du ihn hingestellt hast: Er ist "
-        "die Obergrenze, darunter arbeitet die Regelung.\n\n"
+        "die Mitte, um die herum geregelt wird.\n\n"
         "Für Musik ist es nichts — dort sind leise Stellen Absicht.",
-        "Pulls loud parts down so the volume stays even — meant for speech, "
-        "where one person is loud and the next one quiet.\n\n"
-        "The slider stays where you put it: it is the upper limit, and the "
-        "control works below it.\n\n"
+        "Lifts quiet parts and pulls loud ones down so the volume stays "
+        "even — meant for speech, where one person is loud and the next one "
+        "quiet.\n\n"
+        "The slider stays where you put it: it is the middle the control "
+        "works around.\n\n"
         "Not for music — there the quiet parts are intended."),
+    "angleichen_eng": (
+        "Angleichen an — Regler etwas herunter, sonst fehlt Luft nach oben",
+        "Evening out — turn the slider down a bit, no headroom otherwise"),
 
     # ---- Statusleiste ----
     "apps_waehlen": ("Apps wählen", "Choose apps"),
@@ -89,14 +93,13 @@ TEXTE = {
     # ---- Einstellungen: Abschnitte ----
     # Die vier Reiter – gemischt geschrieben wie die Ueberschrift darueber.
     # Die Karten darin tragen die gesperrten Grossbuchstaben.
-    "design": ("Design", "Appearance"),
+    "design": ("DESIGN", "APPEARANCE"),
     "steuerung": ("Steuerung", "Control"),
     "anzeige": ("Anzeige", "Display"),
     "allgemein": ("Allgemein", "General"),
     "sprache_abschnitt": ("SPRACHE", "LANGUAGE"),
 
     # ---- Einstellungen: Design ----
-    "modus": ("MODUS", "MODE"),
     "dunkel": ("Dunkel", "Dark"),
     "hell": ("Hell", "Light"),
     "farbe": ("FARBE", "COLOUR"),
