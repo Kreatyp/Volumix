@@ -270,7 +270,8 @@ Der Quelltext ist in Bausteine geteilt, statt in einer einzigen großen Datei:
 | `volumix\window.py` | Hauptfenster, Einstellungen, Dialoge |
 | `volumix\hooks.py` | Daumenrad und Lautstärke-Tasten |
 | `volumix\sprache.py` | alle sichtbaren Texte, Deutsch und Englisch |
-| `volumix\fonts\` | die Schrift der Oberfläche samt Lizenztext |
+| `volumix\klang.py` | der Ton am Anschlag |
+| `volumix\toene\` | die Klangdatei dazu |
 
 Einstellungen liegen in `%APPDATA%\Volumix\config.json`,
 der Autostart-Eintrag unter `HKCU\...\CurrentVersion\Run\Volumix`.

@@ -168,16 +168,30 @@ app.processEvents()
 pruefe("im Mixer wieder da", f.kopfzeile.isVisible(), True)
 pruefe("Profilleiste wieder da", f.profilleiste.isVisible(), True)
 
-print("\n=== Mitgelieferte Schrift ===")
+print("\n=== Schrift der Oberflaeche ===")
 from volumix import theme as th                                 # noqa: E402
-pruefe("Schrift ist angemeldet", th.schrift() != th.SCHRIFT_ERSATZ,
-       True)
-pruefe("und steht in der Stilvorlage", th.schrift() in f.theme.qss(), True)
+pruefe("nutzt die Windows-Oberflaechenschrift",
+       th.schrift().startswith("Segoe UI"), True)
+pruefe("kleine Beschriftungen bekommen die Small-Fassung",
+       "Segoe UI Variable Small" in f.theme.qss(), True)
+pruefe("grosse die Display-Fassung",
+       "Segoe UI Variable Display" in f.theme.qss(), True)
+import re                                                        # noqa: E402
+angaben = re.findall(r"font-family:\s*([^;]+);", f.theme.qss())
+ohne_rueckfall = [a.strip() for a in angaben if '"Segoe UI"' not in a]
+pruefe("jede Schriftangabe hat einen Rueckfall fuer Windows 10",
+       not ohne_rueckfall, True)
+if ohne_rueckfall:
+    for a in ohne_rueckfall:
+        print("       " + a)
+print("       ({} Angaben geprueft)".format(len(angaben)))
 
 # Was zaehlt, ist nicht die gewuenschte Schrift, sondern die tatsaechlich
 # gezeichnete. Qt nimmt still eine andere Familie, wenn es das verlangte
 # Gewicht in der eingestellten nicht findet – die Wortmarke (Gewicht 800)
-# stand dadurch eine Zeit lang in Segoe UI, ohne dass irgendetwas meckerte.
+# stand dadurch eine Zeit lang in einer anderen Schrift, ohne dass irgendetwas
+# meckerte. Erlaubt ist alles aus der Segoe-Familie, denn die drei optischen
+# Groessen sind Absicht; alles andere waere ein stiller Rueckfall.
 from PySide6.QtGui import QFontInfo                              # noqa: E402
 from PySide6.QtWidgets import QLabel                             # noqa: E402
 falsch = []
@@ -188,10 +202,10 @@ for seite in (0, 1):
         if not lbl.text() or not lbl.isVisible():
             continue
         echt = QFontInfo(lbl.font()).family()
-        if echt != th.schrift():
+        if not echt.startswith("Segoe UI"):
             falsch.append("{} -> {}".format(lbl.text()[:18], echt))
 f._seite(0)
-pruefe("jede Beschriftung wird auch wirklich damit gezeichnet",
+pruefe("keine Beschriftung faellt auf eine fremde Schrift zurueck",
        not falsch, True)
 if falsch:
     for m in sorted(set(falsch))[:4]:

@@ -14,14 +14,26 @@ import os
 
 from . import config
 
-# Mitgelieferte Schrift. Segoe UI liegt zwar auf jedem Windows, ist aber die
-# Systemschrift – eine App, die nichts einstellt, sieht damit aus wie jede
-# andere. Die Datei steht unter der SIL Open Font License, die das Weitergeben
-# ausdruecklich erlaubt (siehe LIZENZHINWEISE.md).
-SCHRIFT_DATEI = "PlusJakartaSans.ttf"
-SCHRIFT_ERSATZ = "Segoe UI Variable Text"
-
-_familie = None
+# Die Oberflaechenschrift von Windows selbst – dieselbe, die Explorer, die
+# Einstellungen und die meisten Programme benutzen.
+#
+# Vorher lag hier eine mitgelieferte Schrift, damit das Programm nicht wie
+# jedes andere aussieht. Der Preis dafuer war zu hoch: Eine Schriftdatei ist
+# nur eine Datei. Segoe UI Variable ist mehr – Windows liefert sie in drei
+# optischen Groessen, jede fuer ihren Bereich gezeichnet, und rendert sie auf
+# jedem Bildschirm gleich. Genau daran lag es, dass eine fremde Schrift bei
+# 11 px krisselig wurde und auf zwei Rechnern verschieden aussah.
+#
+#   Small    fuer die kleinen, gesperrten Beschriftungen
+#   Text     fuer alles Normale
+#   Display  fuer Wortmarke und Ueberschriften
+#
+# Der zweite Name ist jeweils der Rueckfall fuer Windows 10, das die
+# Variable-Fassung noch nicht hat.
+SCHRIFT_KLEIN = '"Segoe UI Variable Small", "Segoe UI"'
+SCHRIFT_TEXT = '"Segoe UI Variable Text", "Segoe UI"'
+SCHRIFT_GROSS = '"Segoe UI Variable Display", "Segoe UI"'
+SCHRIFT_ERSATZ = "Segoe UI"
 
 # (Schluessel, Anzeigename, dunkel, hell)
 PALETTE = [
@@ -56,31 +68,18 @@ LIGHT = {
 
 
 def schrift():
-    """Die mitgelieferte Schrift anmelden und ihren Familiennamen liefern.
+    """Der Familienname fuer Fliesstext – fuer alles, was selbst zeichnet.
 
-    Faellt auf die Systemschrift zurueck, falls die Datei einmal fehlt – die
-    App soll daran nicht scheitern.
+    Windows 11 bringt die Variable-Fassung mit; wo sie fehlt, greift die
+    Rueckfallkette in der Stilvorlage, hier der einfache Name.
     """
-    global _familie
-    if _familie is not None:
-        return _familie
-    from PySide6.QtGui import QGuiApplication
+    from PySide6.QtGui import QFont, QFontInfo, QGuiApplication
     if QGuiApplication.instance() is None:
-        # Schriften anmelden geht erst, wenn Qt steht – vorher stuerzt es ab.
-        # Das Ergebnis hier NICHT merken, sonst bliebe es beim Ersatz.
         return SCHRIFT_ERSATZ
-    _familie = SCHRIFT_ERSATZ
-    pfad = config.paket_pfad("fonts", SCHRIFT_DATEI)
-    if os.path.exists(pfad):
-        try:
-            from PySide6.QtGui import QFontDatabase
-            kennung = QFontDatabase.addApplicationFont(pfad)
-            namen = QFontDatabase.applicationFontFamilies(kennung)
-            if namen:
-                _familie = namen[0]
-        except Exception:
-            pass
-    return _familie
+    probe = QFont("Segoe UI Variable Text")
+    if QFontInfo(probe).family().startswith("Segoe UI Variable"):
+        return "Segoe UI Variable Text"
+    return SCHRIFT_ERSATZ
 
 
 def _rgb(c):
@@ -152,31 +151,42 @@ class Theme:
     # ---- Stilvorlage -----------------------------------------------------
     def qss(self):
         t = self
-        f = schrift()
         return f"""
+        /* Fliesstext. Segoe UI Variable kennt nur 400 und 700 – die feinen
+           Zwischenstufen einer Webschrift gibt es hier nicht, dafuer sitzt
+           jede Stufe auf dem Pixelraster. */
         QWidget {{
             color: {t.fg};
-            font-family: "{f}", "Segoe UI";
+            font-family: {SCHRIFT_TEXT};
             font-size: 13px;
-            font-weight: 500;
+            font-weight: 400;
         }}
         #Fenster {{ background: {t.bg}; }}
 
         /* Karte, Leiste und Profilleiste zeichnen sich selbst –
            siehe widgets.Flaeche. Hier stehen nur die Schriften. */
+        /* Die kleinen gesperrten Beschriftungen: dafuer gibt es in
+           Windows eine eigene optische Groesse. */
         #Ueberschrift {{
             color: {mix(t.muted, t.bg, 0.15)};
-            font-size: 10px;
+            font-family: {SCHRIFT_KLEIN};
+            font-size: 11px;
             font-weight: 700;
-            letter-spacing: 1.6px;
+            letter-spacing: 1.3px;
         }}
-        #Titel {{ font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }}
-        /* Die Wortmarke war frueher ein Bild in einer Deko-Schrift. Neben
-           dem uebrigen Satz sah das aus wie zwei verschiedene Programme. */
+        #Titel {{
+            font-family: {SCHRIFT_GROSS};
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.2px;
+        }}
+        /* Grosse Groessen bekommen die Display-Fassung – dort sitzen die
+           Buchstaben enger und die Formen sind feiner gezeichnet. */
         #Wortmarke {{
+            font-family: {SCHRIFT_GROSS};
             font-size: 27px;
-            font-weight: 800;
-            letter-spacing: -0.4px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
         }}
         #DialogTitel {{
             font-size: 16px;
@@ -186,11 +196,12 @@ class Theme:
         #Abdunklung {{ background: rgba(0, 0, 0, 120); }}
         #Untertitel {{
             color: {t.muted};
-            font-size: 10px;
-            font-weight: 600;
-            letter-spacing: 1.5px;
+            font-family: {SCHRIFT_KLEIN};
+            font-size: 11px;
+            font-weight: 400;
+            letter-spacing: 1.3px;
         }}
-        #Hinweis {{ color: {t.muted}; font-size: 12px; font-weight: 500; }}
+        #Hinweis {{ color: {t.muted}; font-size: 12px; }}
         #Trennlinie {{ background: {mix(t.card, t.fg, 0.10)}; border: none; }}
 
         /* Profilleiste: Der Name ist ein Eingabefeld, sieht aber aus wie Text.
@@ -219,12 +230,12 @@ class Theme:
            angehakte Zeile wirklich hervor. */
         #Name {{
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 400;
             color: {mix(t.fg, t.muted, 0.30)};
         }}
         #NameGewaehlt {{
             font-size: 14px;
-            font-weight: 800;
+            font-weight: 700;
             letter-spacing: -0.1px;
             color: {t.fg};
         }}
@@ -345,6 +356,5 @@ class Theme:
             border-radius: 9px;
             padding: 9px 12px;
             font-size: 12px;
-            font-weight: 500;
         }}
         """

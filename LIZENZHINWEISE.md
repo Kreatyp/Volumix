@@ -21,16 +21,12 @@ Lizenztexte stehen unter
 
 ## Schrift der Oberfläche
 
-Die gesamte Oberfläche ist in **Plus Jakarta Sans** gesetzt
-([Tokotype](https://github.com/tokotype/PlusJakartaSans)). Sie steht unter der
-**SIL Open Font License 1.1** — Weitergabe im Programmpaket ist ausdrücklich
-erlaubt, auch bei kommerzieller Nutzung.
+Volumix benutzt **Segoe UI Variable**, die Oberflächenschrift von Windows
+selbst — dieselbe, die im Explorer und in den Einstellungen steht. Sie wird
+also nicht mitgeliefert, und es gibt nichts zu lizenzieren.
 
-Die Schriftdatei liegt unter `volumix/fonts/PlusJakartaSans.ttf`, der
-vollständige Lizenztext direkt daneben in `PlusJakartaSans-OFL.txt`.
-
-> Die OFL verlangt lediglich, dass die Schrift nicht unter ihrem eigenen Namen
-> verkauft wird und der Lizenztext mitwandert. Beides ist erfüllt.
+Auf Windows 10, wo es die Variable-Fassung noch nicht gibt, greift die
+Rückfallkette auf **Segoe UI**.
 
 ## Klang
 

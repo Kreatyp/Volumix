@@ -170,10 +170,10 @@ def main():
         "--workpath", arbeit,
         "--specpath", spec,
         "--noconfirm",
-        # Die Schrift der Oberflaeche. Sie steht unter der SIL Open Font
-        # License, die das Mitliefern ausdruecklich erlaubt – der Lizenztext
-        # liegt daneben und wandert mit.
-        "--add-data", os.path.join(HIER, "volumix", "fonts") + ";volumix/fonts",
+        # Eine Schrift muss nicht mit: Die Oberflaeche benutzt die von
+        # Windows (Segoe UI Variable). Sie ist fuer jede Groesse und jede
+        # Bildschirmdichte gezeichnet – das kann eine mitgelieferte Datei
+        # nicht leisten.
         # Der Ton am Anschlag – winsound braucht eine echte Datei auf der
         # Platte, deshalb muss sie mit ins Paket.
         "--add-data", os.path.join(HIER, "volumix", "toene") + ";volumix/toene",
