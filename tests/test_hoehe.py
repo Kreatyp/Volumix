@@ -102,22 +102,12 @@ app.processEvents()
 pruefe("ganz unten nur noch oben", d.schleier.oben and not d.schleier.unten)
 d.reject()
 
-print("\n=== Symbole bei krummer Bildschirmskalierung ===")
-# 125 % Windows-Skalierung ergibt keine glatte Bilddichte. Wurde die
-# Pixelzahl dabei abgeschnitten, war das Symbol bis zu einem halben Pixel zu
-# klein – Qt musste es beim Zeichnen wieder hochrechnen, und genau davon
-# wird es weich.
-from volumix import icons                                       # noqa: E402
-schief = []
-for dpr in (1.0, 1.25, 1.5, 1.75, 1.875, 2.0, 2.25):
-    for groesse in (16, 17, 19, 20, 22, 24, 30, 32, 40, 64):
-        pm = icons.pixmap("gear", groesse, "#FFFFFF", dpr)
-        logisch = pm.width() / pm.devicePixelRatio()
-        if abs(logisch - groesse) > 0.01:
-            schief.append("{}px@{}: {:.2f}".format(groesse, dpr, logisch))
-        if pm.width() < groesse * dpr:
-            schief.append("{}px@{}: zu wenig Pixel".format(groesse, dpr))
-pruefe("jede Groesse kommt genau an", not schief, ", ".join(schief[:4]))
+# Hier stand eine Pruefung, dass Symbole bei krummen Bildschirm-
+# skalierungen auf den Pixel genau ankommen. Sie gehoerte zu einer Aenderung
+# an icons._render, die zusammen mit den Schriftgroessen zurueckgenommen
+# wurde: Der Stand davor sah besser aus. Der Mangel ist real (17 px kommen
+# bei 125 % als 16,53 px an); die Korrektur liegt in der Historie unter
+# 8c8fc3b bereit, falls sie einzeln gewuenscht wird.
 
 print("\n{}".format("Alles gruen." if not fehler
                     else "{} Test(s) fehlgeschlagen!".format(fehler)))

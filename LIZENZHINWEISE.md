@@ -21,13 +21,13 @@ Lizenztexte stehen unter
 
 ## Schrift der Oberfläche
 
-Die gesamte Oberfläche ist in **Inter** gesetzt
-([rsms](https://github.com/rsms/inter)). Sie steht unter der **SIL Open Font
-License 1.1** — Weitergabe im Programmpaket ist ausdrücklich erlaubt, auch bei
-kommerzieller Nutzung.
+Die gesamte Oberfläche ist in **Plus Jakarta Sans** gesetzt
+([Tokotype](https://github.com/tokotype/PlusJakartaSans)). Sie steht unter der
+**SIL Open Font License 1.1** — Weitergabe im Programmpaket ist ausdrücklich
+erlaubt, auch bei kommerzieller Nutzung.
 
-Die Schriftdatei liegt unter `volumix/fonts/Inter.ttf`, der vollständige
-Lizenztext direkt daneben in `Inter-OFL.txt`.
+Die Schriftdatei liegt unter `volumix/fonts/PlusJakartaSans.ttf`, der
+vollständige Lizenztext direkt daneben in `PlusJakartaSans-OFL.txt`.
 
 > Die OFL verlangt lediglich, dass die Schrift nicht unter ihrem eigenen Namen
 > verkauft wird und der Lizenztext mitwandert. Beides ist erfüllt.

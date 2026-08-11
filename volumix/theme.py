@@ -18,13 +18,7 @@ from . import config
 # Systemschrift – eine App, die nichts einstellt, sieht damit aus wie jede
 # andere. Die Datei steht unter der SIL Open Font License, die das Weitergeben
 # ausdruecklich erlaubt (siehe LIZENZHINWEISE.md).
-#
-# Vorher stand hier Plus Jakarta Sans. Die ist als Display-Schrift gebaut:
-# gross sieht sie hervorragend aus, aber in den Groessen, in denen dieses
-# Programm fast nur schreibt (11 bis 14 px), stehen ihre Buchstaben gedraengt
-# und die Strichstaerken werden ungleichmaessig. Inter ist fuer genau diese
-# Groessen auf dem Bildschirm gemacht.
-SCHRIFT_DATEI = "Inter.ttf"
+SCHRIFT_DATEI = "PlusJakartaSans.ttf"
 SCHRIFT_ERSATZ = "Segoe UI Variable Text"
 
 _familie = None
@@ -87,23 +81,6 @@ def schrift():
         except Exception:
             pass
     return _familie
-
-
-def basis_schrift():
-    """Eine Schrift der Anwendung – fuer alles, was sich selbst zeichnet.
-
-    Die Familie MUSS auch in der Stilvorlage stehen. Sie stattdessen ueber
-    QApplication.setFont zu setzen, sah nach der besseren Idee aus, ging aber
-    schief: Verlangt das Blatt dann ein Gewicht, das die Grundschrift nicht
-    fuehrt (die Wortmarke steht auf 800), sucht Qt eine passende Familie und
-    landet bei der Systemschrift. Die Wortmarke stand danach in Segoe UI –
-    nachgewiesen mit QFontInfo, deshalb prueft test_schalter das jetzt.
-    """
-    from PySide6.QtGui import QFont
-    f = QFont(schrift())
-    f.setPixelSize(13)
-    f.setWeight(QFont.Medium)
-    return f
 
 
 def _rgb(c):
@@ -175,13 +152,11 @@ class Theme:
     # ---- Stilvorlage -----------------------------------------------------
     def qss(self):
         t = self
+        f = schrift()
         return f"""
-        /* Die Familie gehoert hierher, nicht nur an die Anwendung: Steht sie
-           allein in QApplication.setFont, faellt Qt bei jedem abweichenden
-           Gewicht auf die Systemschrift zurueck. */
         QWidget {{
             color: {t.fg};
-            font-family: "{schrift()}", "Segoe UI";
+            font-family: "{f}", "Segoe UI";
             font-size: 13px;
             font-weight: 500;
         }}
@@ -189,14 +164,11 @@ class Theme:
 
         /* Karte, Leiste und Profilleiste zeichnen sich selbst –
            siehe widgets.Flaeche. Hier stehen nur die Schriften. */
-        /* Kleinste Schrift im Programm. 10 px waren auf einem Bildschirm
-           ohne Skalierung unter dem, was Windows selbst benutzt (12 px) –
-           mit weiter Sperrung wird eine feine Schrift dort krisselig. */
         #Ueberschrift {{
             color: {mix(t.muted, t.bg, 0.15)};
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 700;
-            letter-spacing: 1.2px;
+            letter-spacing: 1.6px;
         }}
         #Titel {{ font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }}
         /* Die Wortmarke war frueher ein Bild in einer Deko-Schrift. Neben
@@ -214,9 +186,9 @@ class Theme:
         #Abdunklung {{ background: rgba(0, 0, 0, 120); }}
         #Untertitel {{
             color: {t.muted};
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 600;
-            letter-spacing: 1.2px;
+            letter-spacing: 1.5px;
         }}
         #Hinweis {{ color: {t.muted}; font-size: 12px; font-weight: 500; }}
         #Trennlinie {{ background: {mix(t.card, t.fg, 0.10)}; border: none; }}
