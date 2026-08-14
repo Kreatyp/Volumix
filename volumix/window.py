@@ -285,12 +285,17 @@ class Karte(Flaeche):
     eine eigene Zeile dafuer zu brauchen.
     """
 
-    def __init__(self, theme, titel=None, zusatz=None, parent=None):
+    def __init__(self, theme, titel=None, zusatz=None, parent=None,
+                 flach=False):
         super().__init__(theme, 16, parent)
         self.setObjectName("Karte")
+        # `flach` zeichnet keine Flaeche, nur die Ueberschrift und den Inhalt.
+        # Fuer die Mixerliste: Sie fuellt das Fenster ohnehin, ein Rahmen um
+        # etwas, das bis an den Rand geht, umschliesst nichts.
+        self.flach = flach
         self.lay = QVBoxLayout(self)
-        self.lay.setContentsMargins(18, 14, 18, 16)
-        self.lay.setSpacing(10)
+        self.lay.setContentsMargins(16, 16, 16, 16)
+        self.lay.setSpacing(12)
         if titel:
             kopf = QHBoxLayout()
             kopf.setSpacing(4)
@@ -301,6 +306,11 @@ class Karte(Flaeche):
                 kopf.addWidget(zusatz)
             kopf.addStretch(1)
             self.lay.addLayout(kopf)
+
+    def paintEvent(self, e):
+        if self.flach:
+            return
+        super().paintEvent(e)
 
 
 class MainWindow(QWidget):
@@ -443,12 +453,15 @@ class MainWindow(QWidget):
         aussen.addWidget(self.mixer_seite, 1)
         aussen.addWidget(self.einst_seite, 1)
 
-        # Statusleiste
-        self.leiste = Flaeche(self.theme, 12)
+        # Statusleiste – ohne eigene Flaeche. Profilleiste, Mixer, Suchfeld
+        # und Fuss waren vier gerahmte Kaesten uebereinander, jeder mit Rand,
+        # Radius und Kante. Der Fuss traegt eine Zeile Text und einen Knopf;
+        # dafuer braucht es kein eigenes Papier. Der Knopf steht fuer sich.
+        self.leiste = QWidget()
         self.leiste.setObjectName("Leiste")
-        self.leiste.setFixedHeight(46)
+        self.leiste.setFixedHeight(48)
         ll = QHBoxLayout(self.leiste)
-        ll.setContentsMargins(14, 0, 12, 0)
+        ll.setContentsMargins(16, 0, 12, 0)
         self.status = QLabel("")
         self.status.setObjectName("Hinweis")
         ll.addWidget(self.status, 1)
@@ -463,7 +476,7 @@ class MainWindow(QWidget):
         lay = QVBoxLayout(seite)
         lay.setContentsMargins(0, 0, 0, 0)
 
-        self.karte = Karte(self.theme, T("mixer"))
+        self.karte = Karte(self.theme, T("mixer"), flach=True)
         lay.addWidget(self.karte, 1)
 
         # Suchfeld – erscheint erst ab genug Apps
@@ -1282,7 +1295,7 @@ class MainWindow(QWidget):
     # ---- Profile ---------------------------------------------------------
     def _profilleiste_bauen(self):
         """Schmaler Streifen: zurueck, Name, vor, plus."""
-        leiste = Flaeche(self.theme, 12)
+        leiste = QWidget()
         leiste.setObjectName("Profilleiste")
         leiste.setFixedHeight(52)
         z = QHBoxLayout(leiste)

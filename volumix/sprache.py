@@ -11,8 +11,12 @@ _AKTUELL = "de"
 
 TEXTE = {
     # ---- Kopf und Grundgeruest ----
-    "untertitel": ("LAUTSTÄRKE-MIXER FÜR EINZELNE APPS",
-                   "VOLUME MIXER FOR INDIVIDUAL APPS"),
+    # Ein Satz, kein Etikett: Gesperrte Versalien sind fuer kurze
+    # Ordnungsworte da („ALLES“, „EINZELNE APPS“). Ueber einen ganzen Satz
+    # gezogen lesen sie sich muehsam und geben dem Kopf ein Gewicht, das er
+    # nicht braucht.
+    "untertitel": ("Lautstärke-Mixer für einzelne Apps",
+                   "Volume mixer for individual apps"),
     "mixer": ("LAUTSTÄRKE-MIXER", "VOLUME MIXER"),
     "alles": ("ALLES", "EVERYTHING"),
     "einzelne_apps": ("EINZELNE APPS", "INDIVIDUAL APPS"),

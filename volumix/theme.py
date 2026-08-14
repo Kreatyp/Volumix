@@ -51,17 +51,33 @@ PALETTE = [
     ("gray", "Grau", "#9CA3AF", "#6B7280"),
 ]
 
-# Der Fensterhintergrund liegt bewusst deutlich unter der Karte – sonst
-# verschwindet die Karte im Untergrund und hat keine Kante.
+# Die Flaechen sind nach wahrgenommener Helligkeit gestuft (L* aus CIE Lab,
+# 0 = schwarz, 100 = weiss), nicht nach Augenmass. Der Unterschied ist
+# erheblich: Zwischen zwei fast schwarzen Toenen kann der Zahlenwert sich
+# verdoppeln, waehrend das Auge kaum einen Schritt sieht.
+#
+# Vorher lag der Fenstergrund bei L* 3 und damit praktisch auf Schwarz, die
+# Karten sieben Stufen darueber. Das ist der Grund, warum die Karten wie
+# aufgeklebte Inseln wirkten statt wie Papier, das aufliegt. Die Schritte
+# waren dabei ungleich: +1,4 / +4,5 / +5,9 / +2,3 im Dunklen, hell sogar
+# -2,8 / +9,9 / -4,2 / -8,9 – mal ein Sprung, mal fast nichts.
+#
+# Jetzt: gleichmaessig, rund vier bis fuenf Stufen je Ebene.
+#
+#   dunkel   Grund 10 -> Senke 7 -> Karte 14 -> Karte hell 19 -> Kante 23
+#   hell     Grund 95 -> Senke 91 -> Karte 100 -> Karte hell 97 -> Kante 88
+#
+# Die Senke liegt jeweils unter dem Grund: Was vertieft ist, muss dunkler
+# sein als das, worin es liegt.
 DARK = {
-    "bg": "#0B0C10", "card": "#171A21", "card2": "#22262F",
-    "senke": "#0E1016", "stroke": "#262B35", "fg": "#EDEFF5",
-    "muted": "#868E9F", "knob": "#FFFFFF", "off": "#2B303A",
+    "bg": "#191B21", "card": "#21242C", "card2": "#2B2F39",
+    "senke": "#15171C", "stroke": "#343945", "fg": "#E9ECF3",
+    "muted": "#8B93A4", "knob": "#FFFFFF", "off": "#343945",
     "red": "#FF5C7C",
 }
 LIGHT = {
-    "bg": "#E8EBF0", "card": "#FFFFFF", "card2": "#F1F3F7",
-    "senke": "#DFE3EA", "stroke": "#D5DAE3", "fg": "#12151C",
+    "bg": "#EDEFF3", "card": "#FFFFFF", "card2": "#F6F7FA",
+    "senke": "#E2E5EB", "stroke": "#DADEE6", "fg": "#12151C",
     "muted": "#5A6272", "knob": "#FFFFFF", "off": "#C6CCD7",
     "red": "#DC2626",
 }
@@ -226,10 +242,10 @@ class Theme:
         #Abdunklung {{ background: rgba(0, 0, 0, 120); }}
         #Untertitel {{
             color: {t.muted};
-            font-family: {SCHRIFT_KLEIN};
-            font-size: 11px;
+            font-family: {SCHRIFT_TEXT};
+            font-size: 12px;
             font-weight: 400;
-            letter-spacing: 1.3px;
+            letter-spacing: 0px;
         }}
         #Hinweis {{ color: {t.muted}; font-size: 12px; }}
         #Trennlinie {{ background: {mix(t.card, t.fg, 0.10)}; border: none; }}
@@ -347,12 +363,14 @@ class Theme:
 
         /* Schalter (in ToggleSwitch selbst gezeichnet) */
 
-        /* Eingabefeld */
+        /* Eingabefeld. Nicht als Vertiefung, sondern als leichte Erhebung
+           mit Kante: Ohne Karte darunter ist die Senke ein dunkles Loch im
+           Fenster und zieht mehr Aufmerksamkeit als die Liste darunter. */
         QLineEdit {{
-            background: {t.senke};
-            border: 1px solid transparent;
-            border-radius: 9px;
-            padding: 6px 11px;
+            background: {t.card};
+            border: 1px solid {t.stroke};
+            border-radius: 8px;
+            padding: 8px 12px;
             font-size: 12px;
             selection-background-color: {t.accent};
         }}
