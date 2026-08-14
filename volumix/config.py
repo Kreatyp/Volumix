@@ -28,6 +28,11 @@ DEFAULTS = {
     "switch_mode": "none",   # was beim Wechsel Gesamt <-> App passiert
     "meters": True,          # Live-Pegel neben den Reglern
     "ton_anschlag": True,    # kurzer Ton bei voller Lautstaerke
+    # Meldet Aenderungen an Programme auf demselben Rechner, damit sie die
+    # Anzeige selbst zeichnen koennen – fuer Spiele im Vollbild, hinter
+    # denen die Einblendung sonst liegt. Ab Werk aus: Was einen Lauscher
+    # aufmacht, soll man einschalten muessen.
+    "melder": False,
     "angleichen": [],        # Apps, deren Lautstaerke angeglichen wird
     "osd_enabled": True,
     "osd_size": 45,
@@ -126,13 +131,50 @@ def notiz(text):
         pass
 
 
+def _kaputte_beiseite(grund):
+    """Eine unlesbare Einstellungsdatei retten, statt sie zu ueberschreiben.
+
+    Sie wandert mit Zeitstempel zur Seite. Wer seine Profile vermisst, findet
+    sie dort wieder – und im Protokoll steht, was los war.
+    """
+    import datetime
+    try:
+        stempel = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        ziel = "{}.unlesbar-{}".format(CONFIG_PATH, stempel)
+        os.replace(CONFIG_PATH, ziel)
+        notiz("Einstellungen unlesbar ({}) – beiseitegelegt nach {}".format(
+            grund, os.path.basename(ziel)))
+    except Exception:
+        # Selbst das Retten darf den Start nicht verhindern.
+        pass
+
+
 def load():
+    """Einstellungen lesen – und im Zweifel lieber nichts wegwerfen.
+
+    Zwei Dinge, die ohne Umschweife Daten kosten koennen:
+
+    `utf-8-sig` statt `utf-8`: Wer die Datei mit einem Windows-Werkzeug
+    bearbeitet – Notepad, PowerShells `Out-File`, viele Editoren – bekommt
+    ein BOM an den Anfang geschrieben. Als `utf-8` gelesen steht dann ein
+    unsichtbares Zeichen vor der ersten Klammer, `json` bricht ab, und alles
+    faellt auf Werkseinstellung zurueck. `utf-8-sig` schluckt es.
+
+    Und wenn die Datei doch unlesbar ist, wird sie beiseitegelegt statt
+    ueberschrieben. Vorher passierte genau das: Volumix startete mit
+    Standardwerten und speicherte sie beim naechsten Anlass darueber – die
+    Profile, Farben und angehakten Apps waren weg, ohne dass jemand etwas
+    davon mitbekam.
+    """
     cfg = dict(DEFAULTS)
     try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        with open(CONFIG_PATH, "r", encoding="utf-8-sig") as f:
             daten = json.load(f)
-    except Exception:
+    except FileNotFoundError:
         daten = {}
+    except Exception as e:
+        daten = {}
+        _kaputte_beiseite(e)
     for k in DEFAULTS:
         if k in daten:
             cfg[k] = daten[k]

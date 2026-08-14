@@ -148,6 +148,30 @@ TEXTE = {
         "Works wherever the media keys work — Spotify, YouTube and the "
         "rest."),
     "mit_windows_starten": ("Mit Windows starten", "Start with Windows"),
+    "melder": ("Anzeige an Spiele weitergeben",
+               "Pass the display on to games"),
+    "melder_hilfe": (
+        "Im Vollbild liegt die Einblendung von Volumix hinter dem Spiel — "
+        "egal, wie weit oben ihr Fenster steht. Das ist keine Einstellung, "
+        "die man umlegen kann, sondern die Art, wie Windows Vollbild "
+        "zeichnet.\n\n"
+        "Mit dieser Option meldet Volumix jede Änderung an Programme auf "
+        "diesem Rechner, die zuhören — etwa die Minecraft-Mod. Das Spiel "
+        "zeichnet die Anzeige dann selbst und sie ist auch im Vollbild da."
+        "\n\n"
+        "Es wird nur gesendet, nie empfangen: Über diesen Weg kann niemand "
+        "deine Lautstärke verstellen. Erreichbar ist der Anschluss nur von "
+        "diesem Rechner aus.",
+        "In fullscreen the Volumix overlay sits behind the game — no matter "
+        "how far on top its window is. That is not a setting, it is how "
+        "Windows draws fullscreen.\n\n"
+        "With this option Volumix reports every change to programs on this "
+        "machine that listen — such as the Minecraft mod. The game then "
+        "draws the display itself and it is there in fullscreen too.\n\n"
+        "It only sends, never receives: nobody can change your volume this "
+        "way. The port is reachable from this machine only."),
+    "melder_belegt": ("Anschluss belegt — läuft Volumix schon einmal?",
+                      "Port in use — is Volumix already running?"),
     "beim_wechsel": ("BEIM WECHSEL GESAMT ↔ APP",
                      "WHEN SWITCHING MASTER ↔ APP"),
     "wechsel_frage": ("Was mit den Pegeln geschieht",

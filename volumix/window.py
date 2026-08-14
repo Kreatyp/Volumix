@@ -16,6 +16,7 @@ from . import config, icons, klang
 from .audio import AudioEngine, huebscher_name
 from .config import MASTER_KEY
 from .hooks import InputHook
+from .melder import Melder
 from .osd import Osd
 from . import sprache
 from .sprache import SPRACHEN, T
@@ -361,6 +362,10 @@ class MainWindow(QWidget):
         self.osd = Osd(self.theme)
         self.osd.einstellen(self.cfg["osd_size"], self.cfg["osd_x"],
                             self.cfg["osd_y"])
+
+        self.melder = Melder()
+        if self.cfg.get("melder"):
+            self.melder.starten()
 
         self.engine = AudioEngine(
             on_apps=lambda items: self.apps_bereit.emit(items),
@@ -716,7 +721,22 @@ class MainWindow(QWidget):
         self._schalter_zeile(
             s, T("mit_windows_starten"), config.get_autostart(),
             lambda an: config.set_autostart(an))
+        self.sw_melder = self._schalter_zeile(
+            s, T("melder"), self.cfg.get("melder", False),
+            self._melder_setzen, hilfe=T("melder_hilfe"))
         return self._bereich(d, k, s)
+
+    def _melder_setzen(self, an):
+        self.cfg["melder"] = bool(an)
+        if an:
+            if not self.melder.starten():
+                self._melden(T("melder_belegt"))
+                self.cfg["melder"] = False
+                if hasattr(self, "sw_melder"):
+                    self.sw_melder.setChecked(False)
+        else:
+            self.melder.stoppen()
+        self._speichern()
 
     def bereich_nr(self, name):
         """Stelle eines Bereichs – Aufrufer muessen die Reihenfolge nicht
@@ -1223,6 +1243,45 @@ class MainWindow(QWidget):
             return
         schnitt = int(round(sum(werte) / len(werte)))
         self.osd.zeigen(quellen, schnitt, akzent=self.theme.accent)
+        self._nach_aussen_melden(quellen, schnitt)
+
+    def _symbol_png(self, key, exe, name, groesse=32):
+        """Das App-Symbol als PNG-Bytes – fuer Zuhoerer ausserhalb von Qt."""
+        from PySide6.QtCore import QBuffer, QByteArray
+        pm = icons.exe_icon(exe, groesse, 1.0)
+        if pm is None:
+            if key == MASTER_KEY:
+                pm = icons.app_logo(groesse, self.theme.accent, 1.0)
+            else:
+                pm = icons.buchstaben_pixmap(name[:1] or "?", groesse,
+                                             self.theme.card2,
+                                             self.theme.muted, 1.0)
+        if pm is None:
+            return None
+        puffer = QBuffer(QByteArray())
+        puffer.open(QBuffer.WriteOnly)
+        pm.save(puffer, "PNG")
+        return bytes(puffer.data())
+
+    def _nach_aussen_melden(self, quellen, prozent):
+        """Dieselbe Aenderung an Zuhoerer weitergeben – etwa die Mod.
+
+        Gemeldet wird die erste geregelte App: Die Einblendung zeigt bei
+        mehreren zwar alle Symbole, aber nur einen Wert, und mehr braucht
+        eine fremde Anzeige nicht.
+        """
+        melder = getattr(self, "melder", None)
+        if melder is None or not melder.laeuft:
+            return
+        key, exe, name = quellen[0]
+        row = self.rows.get(key)
+        try:
+            symbol = self._symbol_png(key, exe, name)
+        except Exception:
+            symbol = None
+        melder.melden(key, name, prozent,
+                      stumm=bool(row is not None and row.muted),
+                      symbol_png=symbol, akzent=self.theme.accent)
 
     def _suchen(self, text):
         self._filter = text.strip().lower()
@@ -1805,6 +1864,7 @@ class MainWindow(QWidget):
         config.notiz("beendet")
         self._speichern()
         self.hook.stop()
+        self.melder.stoppen()
         # Erst abklemmen, dann stoppen: der Audio-Thread laeuft noch einen
         # Durchgang weiter und wuerde sonst an ein totes Fenster melden.
         self.engine.on_apps = None
