@@ -362,11 +362,10 @@ class VolumeSlider(Slider):
             if self.muted:
                 p.setBrush(QColor(t.off))
             else:
-                # Einfarbig, nicht als Verlauf. Ein Farbverlauf ueber die
-                # Fuellung ist das Erkennungszeichen eines Fortschrittsbalkens
-                # aus einer Vorlagensammlung – und er macht denselben Pegel je
-                # nach Position verschieden hell.
-                p.setBrush(QColor(t.accent))
+                g = QLinearGradient(0, 0, fuell_breite, 0)
+                g.setColorAt(0.0, QColor(t.accent).lighter(122))
+                g.setColorAt(1.0, QColor(t.accent))
+                p.setBrush(g)
             p.drawRoundedRect(QRectF(0, y, fuell_breite, h), h / 2.0, h / 2.0)
 
         # Pegel: LED-Segmente INNERHALB der Fuellung, dazu eine Spitzen-
@@ -547,7 +546,7 @@ class MixerRow(QWidget):
         self.setObjectName("Zeile")
         self.setCursor(Qt.PointingHandCursor)
         self.setAttribute(Qt.WA_Hover, True)
-        self.setFixedHeight(56)
+        self.setFixedHeight(54)
         # Der Balken am linken Rand faehrt ein, statt zu erscheinen – das
         # zeigt beilaeufig, welche Zeile gerade dazugekommen ist.
         self._balken = 1.0 if self._gewaehlt else 0.0
@@ -556,7 +555,7 @@ class MixerRow(QWidget):
         self._fahrt.setEasingCurve(QEasingCurve.OutCubic)
 
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(16, 0, 16, 0)
+        lay.setContentsMargins(14, 0, 14, 0)
         lay.setSpacing(0)
 
         self.box = _Kaestchen(theme)
@@ -572,7 +571,7 @@ class MixerRow(QWidget):
         self.symbol = QLabel()
         self.symbol.setFixedSize(32, 32)
         lay.addWidget(self.symbol)
-        lay.addSpacing(12)
+        lay.addSpacing(11)
 
         self.name = _ElidedLabel(item["name"])
         self.name.setObjectName("NameGewaehlt" if self._gewaehlt else "Name")
@@ -584,7 +583,7 @@ class MixerRow(QWidget):
         # Rechtsklick-Menue und war damit praktisch nicht auffindbar.
         self.angleich_knopf = QPushButton()
         self.angleich_knopf.setObjectName("Flach")
-        self.angleich_knopf.setFixedSize(32, 32)
+        self.angleich_knopf.setFixedSize(30, 30)
         self.angleich_knopf.setCursor(Qt.PointingHandCursor)
         self.angleich_knopf.clicked.connect(
             lambda: self.angleichen_clicked.emit(self.key,
@@ -595,20 +594,20 @@ class MixerRow(QWidget):
         if self.key.startswith("#"):
             self.angleich_knopf.hide()
         lay.addWidget(self.angleich_knopf)
-        lay.addSpacing(4)
+        lay.addSpacing(2)
 
         self.lautsprecher = QPushButton()
         self.lautsprecher.setObjectName("Flach")
-        self.lautsprecher.setFixedSize(32, 32)
+        self.lautsprecher.setFixedSize(30, 30)
         self.lautsprecher.setCursor(Qt.PointingHandCursor)
         self.lautsprecher.setToolTip(T("stumm_schalten"))
         self.lautsprecher.clicked.connect(
             lambda: self.mute_clicked.emit(self.key, not self.muted))
         lay.addWidget(self.lautsprecher)
-        lay.addSpacing(12)
+        lay.addSpacing(8)
 
         self.regler = VolumeSlider(theme)
-        self.regler.setFixedWidth(128)
+        self.regler.setFixedWidth(130)
         self.regler.meter_an = meter_an
         self.regler.setValue(int(round(item["volume"] * 100)))
         self.regler.sliderMoved.connect(self._geschoben)
@@ -868,16 +867,12 @@ class _Kaestchen(QWidget):
             grund = QColor(t.accent)
             if self._hover:
                 grund = QColor(t.accent_hover)
-            p.setPen(Qt.NoPen)
-            p.setBrush(grund)
         else:
-            # Leer heisst leer: ein Rahmen, keine Fuellung. Der gefuellte
-            # graue Block sah aus wie ein abgeschalteter Knopf – man haelt
-            # ihn fuer gesperrt statt fuer anklickbar.
-            rand = QColor(mix(t.stroke, t.fg, 0.22 if self._hover else 0.0))
-            p.setPen(QPen(rand, 1.6))
-            p.setBrush(QColor(t.senke) if self._hover else Qt.NoBrush)
-            r = r.adjusted(0.3, 0.3, -0.3, -0.3)
+            grund = QColor(t.off)
+            if self._hover:
+                grund = QColor(t.off).lighter(125)
+        p.setPen(Qt.NoPen)
+        p.setBrush(grund)
         p.drawRoundedRect(r, 7, 7)
         if self._an:
             pfad = QPainterPath()
