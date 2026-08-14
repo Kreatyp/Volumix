@@ -88,13 +88,29 @@ LIGHT = {
 # hinkann. Gemessen als Helligkeitsunterschied zwischen leerer Bahn und dem
 # Glas daneben: 13,9 bei 55 % – da verschwimmt sie –, 19,5 bei 88 %. Ganz
 # schwarz waeren es 21,0, das wirkt aber hart und wie ein Loch.
-GLAS_DUNKEL = {"schimmer": 0.38, "weite": 0.72, "deckung": 0.16,
-               "licht": 0.42, "schiene": 0.88}
+# Beim Abdunkeln nicht alles gleichmaessig senken: Dann faellt der Abstand
+# mit und die Flaechen verlieren ihre Kante. Gemessen im fertigen Bild –
+# alles um denselben Anteil runter ergab Grund L* 8,2 bei Abstand 6,8; nur
+# den Grund gesenkt und die Scheibe gehalten ergibt Grund L* 6,3 bei
+# Abstand 9,7. Also dunkler UND deutlicher als vorher (10,4 bei 8,0).
+GLAS_DUNKEL = {"schimmer": 0.24, "weite": 0.72, "deckung": 0.155,
+               "licht": 0.40, "schiene": 0.88}
 # Im Hellen traegt weisse Milch auf hellem Grund nichts – dort ist die
 # Scheibe fast deckend und der Schimmer zurueckhaltender, sonst wird das
 # Fenster bunt statt hell.
 GLAS_HELL = {"schimmer": 0.20, "weite": 0.85, "deckung": 0.82,
              "licht": 0.95, "schiene": 0.24}
+
+# Die Einblendung bekommt dieselben Werte stark gedaempft. Auf ihrer kleinen
+# Flaeche wirkt dieselbe Menge Licht viel kraeftiger als im ganzen Fenster,
+# und sie steht mitten im Bild, waehrend man etwas anderes tut – dort stoert
+# Helligkeit mehr, als sie nuetzt.
+#
+# Gemessen als mittlere Helligkeit ihrer Flaeche: L* 13,9 mit den vollen
+# Werten, 6,0 mit diesen. Noch weiter (L* 4,1) verschluckt der Grund den
+# leeren Teil der Reglerbahn – dann sieht man nicht mehr, wo sie aufhoert.
+OSD_SCHIMMER = 0.30        # Anteil am Schimmer des Fensters
+OSD_DECKUNG = 0.40         # Anteil an der Dichte der Scheibe
 
 
 def schrift():

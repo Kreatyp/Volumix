@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QWidget
 
 from . import icons
 from .theme import glaettung, schrift
+from .theme import OSD_DECKUNG, OSD_SCHIMMER
 from .widgets import flaeche_zeichnen, glasgrund_zeichnen
 
 
@@ -162,8 +163,8 @@ class Osd(QWidget):
 
         # Erst der eigene Grund, dann die Scheibe darauf: Ueber dem Desktop
         # hat das Glas sonst nichts, durch das es scheinen koennte.
-        glasgrund_zeichnen(p, t, karte, radius)
-        flaeche_zeichnen(p, t, karte, radius)
+        glasgrund_zeichnen(p, t, karte, radius, schimmer=OSD_SCHIMMER)
+        flaeche_zeichnen(p, t, karte, radius, deckung=OSD_DECKUNG)
 
         dpr = self.devicePixelRatioF()
         d = int(30 * f)

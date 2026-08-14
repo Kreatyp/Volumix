@@ -25,7 +25,7 @@ def _milch(deckkraft):
     return c
 
 
-def glasgrund_zeichnen(p, theme, rechteck, radius):
+def glasgrund_zeichnen(p, theme, rechteck, radius, schimmer=1.0):
     """Deckender Untergrund fuer Flaechen ausserhalb des Fensters.
 
     Die Einblendung schwebt ueber dem Desktop. Dort ist eine Milchglas-
@@ -47,7 +47,7 @@ def glasgrund_zeichnen(p, theme, rechteck, radius):
     g = QRadialGradient(rechteck.left() + rechteck.width() * 0.22,
                         rechteck.top(), rechteck.width() * 0.85)
     innen, aussen = QColor(akzent), QColor(akzent)
-    innen.setAlphaF(min(1.0, theme.glas["schimmer"] * 0.75))
+    innen.setAlphaF(min(1.0, theme.glas["schimmer"] * schimmer))
     aussen.setAlphaF(0.0)
     g.setColorAt(0.0, innen)
     g.setColorAt(1.0, aussen)
@@ -56,7 +56,7 @@ def glasgrund_zeichnen(p, theme, rechteck, radius):
     p.restore()
 
 
-def flaeche_zeichnen(p, theme, rechteck, radius, licht=1.0):
+def flaeche_zeichnen(p, theme, rechteck, radius, licht=1.0, deckung=1.0):
     """Milchige Scheibe ueber dem farbigen Grund.
 
     Nach oben etwas dichter als nach unten, dazu eine Lichtkante an der
@@ -68,10 +68,11 @@ def flaeche_zeichnen(p, theme, rechteck, radius, licht=1.0):
     farbiges Licht, sonst waere Glas nur ein anderes Grau.
     """
     glas = theme.glas
+    dicht = glas["deckung"] * deckung
     g = QLinearGradient(rechteck.left(), rechteck.top(),
                         rechteck.left(), rechteck.bottom())
-    g.setColorAt(0.0, _milch(glas["deckung"]))
-    g.setColorAt(1.0, _milch(glas["deckung"] * 0.42))
+    g.setColorAt(0.0, _milch(dicht))
+    g.setColorAt(1.0, _milch(dicht * 0.42))
     p.setPen(Qt.NoPen)
     p.setBrush(g)
     p.drawRoundedRect(rechteck, radius, radius)
