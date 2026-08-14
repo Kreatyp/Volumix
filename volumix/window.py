@@ -2,6 +2,7 @@
 """Hauptfenster: Mixer, Einstellungen, Profile, App-Auswahl."""
 import ctypes
 import functools
+import time
 
 from PySide6.QtCore import (Property, QEasingCurve, QPropertyAnimation, QSize,
                             Qt, QTimer, Signal)
@@ -364,8 +365,13 @@ class MainWindow(QWidget):
                             self.cfg["osd_y"])
 
         self.melder = Melder()
-        if self.cfg.get("melder"):
-            self.melder.starten()
+        if self.cfg.get("melder") and not self.melder.starten():
+            # Kein Grund abzubrechen, aber es muss irgendwo stehen: Sonst
+            # zeigt der Schalter „an“ und es lauscht trotzdem nichts. Passiert
+            # vor allem, wenn beim Start noch eine aeltere Instanz den
+            # Anschluss haelt.
+            config.notiz("Weitergabe an Spiele konnte nicht starten – "
+                         "Anschluss belegt")
 
         self.engine = AudioEngine(
             on_apps=lambda items: self.apps_bereit.emit(items),
@@ -1258,10 +1264,17 @@ class MainWindow(QWidget):
                                              self.theme.muted, 1.0)
         if pm is None:
             return None
-        puffer = QBuffer(QByteArray())
+        # Das QByteArray MUSS in einer Variablen liegen. `QBuffer(QByteArray())`
+        # sieht harmlos aus, gibt das Feld aber sofort wieder frei, waehrend
+        # der Puffer noch darauf zeigt – Volumix stuerzte daraufhin bei der
+        # ersten Meldung ab, unterhalb von Python und damit ohne dass ein
+        # `except` etwas davon mitbekommt.
+        daten = QByteArray()
+        puffer = QBuffer(daten)
         puffer.open(QBuffer.WriteOnly)
         pm.save(puffer, "PNG")
-        return bytes(puffer.data())
+        puffer.close()
+        return bytes(daten)
 
     def _nach_aussen_melden(self, quellen, prozent):
         """Dieselbe Aenderung an Zuhoerer weitergeben – etwa die Mod.
@@ -1271,9 +1284,29 @@ class MainWindow(QWidget):
         eine fremde Anzeige nicht.
         """
         melder = getattr(self, "melder", None)
-        if melder is None or not melder.laeuft:
+        if melder is None:
             return
+        if not melder.laeuft:
+            # Eingeschaltet, laeuft aber nicht: Beim Start war der Anschluss
+            # belegt, etwa durch eine Instanz, die gerade erst beendet wurde.
+            # Hier noch einmal versuchen, hoechstens alle paar Sekunden –
+            # sonst haengt an jeder Rastung ein Verbindungsversuch.
+            if not self.cfg.get("melder"):
+                return
+            jetzt = time.monotonic()
+            if jetzt - getattr(self, "_melder_versuch", 0.0) < 5.0:
+                return
+            self._melder_versuch = jetzt
+            if not melder.starten():
+                return
         key, exe, name = quellen[0]
+        # Die Sonderfaelle tragen intern eine Kennung mit Rautezeichen. Im
+        # Fenster steht daneben ihr richtiger Name; wer nur die Meldung
+        # bekommt, saehe sonst „#master“.
+        if key == MASTER_KEY:
+            name = T("gesamtlautstaerke")
+        elif key == config.SYSTEM_KEY:
+            name = T("systemklaenge")
         row = self.rows.get(key)
         try:
             symbol = self._symbol_png(key, exe, name)
