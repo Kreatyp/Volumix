@@ -348,6 +348,7 @@ class MainWindow(QWidget):
         self.theme.set(self.cfg["mode"], self.cfg["accent"])
 
         self.setObjectName("Fenster")
+        self.setAutoFillBackground(False)
         self.setWindowTitle("Volumix")
         self.setWindowIcon(QIcon(icons.app_logo(64, self.theme.accent)))
         self._wunsch_hoehe = self.cfg.get("window_h", 720)
@@ -1258,6 +1259,51 @@ class MainWindow(QWidget):
         if feld is not None and feld.hasFocus():
             feld.clearFocus()
         super().mousePressEvent(e)
+
+    def paintEvent(self, e):
+        """Der Fenstergrund: dunkel, mit drei weichen Lichtern darin.
+
+        Sie sind der Grund, warum die Scheiben darueber wie Glas wirken und
+        nicht wie graue Kaesten – es muss etwas da sein, das durchscheint.
+        Ihre Farbe kommt vom Akzent, das zweite Licht liegt daneben im
+        Farbkreis: Ein einzelner Ton wirkt wie ein Farbstich, zwei
+        benachbarte wie Licht.
+
+        In welche Richtung daneben, haengt vom Ton ab. Fest nach vorn
+        gerechnet landen Rot, Orange und Bernstein im Gelbgruenen – in allen
+        zwoelf Akzentfarben nebeneinander gerendert war das die einzige
+        Zone, die schmutzig aussah. Von dort geht es deshalb rueckwaerts,
+        Richtung Magenta.
+
+        Die Weite entscheidet ueber den Gesamteindruck. Weit gezogen hellen
+        die Lichter die ganze Flaeche auf und das Fenster wirkt milchig;
+        eng gezogen bleiben die Ecken dunkel und die Farbe sitzt dort, wo
+        sie hingehoert.
+        """
+        from PySide6.QtGui import QColor, QPainter, QRadialGradient
+        glas = self.theme.glas
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.fillRect(self.rect(), QColor(self.theme.bg))
+        breite, hoehe = self.width(), self.height()
+        akzent = QColor(self.theme.accent)
+        ton = akzent.hue()
+        schritt = -50 if (ton < 60 or ton > 300) else 50
+        zweit = QColor.fromHsv((ton + schritt) % 360, akzent.saturation(),
+                               akzent.value())
+        p.setPen(Qt.NoPen)
+        for farbe, (mx, my), weit, anteil in (
+                (akzent, (0.16, 0.0), glas["weite"], 1.0),
+                (zweit, (0.95, 0.40), glas["weite"] * 0.9, 0.8),
+                (akzent, (0.45, 1.03), glas["weite"] * 1.1, 0.5)):
+            g = QRadialGradient(breite * mx, hoehe * my, breite * weit)
+            innen, aussen = QColor(farbe), QColor(farbe)
+            innen.setAlphaF(glas["schimmer"] * anteil)
+            aussen.setAlphaF(0.0)
+            g.setColorAt(0.0, innen)
+            g.setColorAt(1.0, aussen)
+            p.setBrush(g)
+            p.drawRect(self.rect())
 
     def resizeEvent(self, e):
         super().resizeEvent(e)

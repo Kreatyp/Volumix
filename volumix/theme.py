@@ -54,8 +54,8 @@ PALETTE = [
 # Der Fensterhintergrund liegt bewusst deutlich unter der Karte – sonst
 # verschwindet die Karte im Untergrund und hat keine Kante.
 DARK = {
-    "bg": "#0B0C10", "card": "#171A21", "card2": "#22262F",
-    "senke": "#0E1016", "stroke": "#262B35", "fg": "#EDEFF5",
+    "bg": "#050609", "card": "#171A21", "card2": "#22262F",
+    "senke": "#0E1016", "stroke": "#262B35", "fg": "#FFFFFF",
     "muted": "#868E9F", "knob": "#FFFFFF", "off": "#2B303A",
     "red": "#FF5C7C",
 }
@@ -65,6 +65,31 @@ LIGHT = {
     "muted": "#5A6272", "knob": "#FFFFFF", "off": "#C6CCD7",
     "red": "#DC2626",
 }
+
+# ---------------------------------------------------------------------------
+# Glas
+# ---------------------------------------------------------------------------
+# Die Flaechen sind keine Volltoene mehr, sondern milchige Scheiben ueber
+# einem Grund, in dem farbiges Licht steht. Ohne dieses Licht bringt Glas
+# nichts: Auf gleichmaessigem Grau sieht Milchglas aus wie Grau.
+#
+#   schimmer  Deckkraft der Lichter im Grund
+#   weite     ihr Radius, als Anteil der Fensterbreite. Der Wert entscheidet
+#             ueber „dunkel“: Weit gezogen hellt das Licht die ganze Flaeche
+#             auf, eng gezogen bleiben die Ecken wirklich dunkel.
+#   deckung   wie dicht die Scheibe ist
+#   licht     Lichtkante an ihrer Oberkante
+#   schiene   wie tief die Reglerbahn im Glas liegt (Schwarzanteil)
+#
+# Gemessen am fertigen Bild, als Abstand Scheibe zu Grund in wahrgenommener
+# Helligkeit: 4,1 bei der ersten Fassung, 7,9 mit diesen Werten.
+GLAS_DUNKEL = {"schimmer": 0.38, "weite": 0.72, "deckung": 0.16,
+               "licht": 0.42, "schiene": 0.55}
+# Im Hellen traegt weisse Milch auf hellem Grund nichts – dort ist die
+# Scheibe fast deckend und der Schimmer zurueckhaltender, sonst wird das
+# Fenster bunt statt hell.
+GLAS_HELL = {"schimmer": 0.20, "weite": 0.85, "deckung": 0.82,
+             "licht": 0.95, "schiene": 0.10}
 
 
 def schrift():
@@ -149,6 +174,7 @@ class Theme:
         basis = LIGHT if self.hell else DARK
         for k, v in basis.items():
             setattr(self, k, v)
+        self.glas = dict(GLAS_HELL if self.hell else GLAS_DUNKEL)
         farbe = next((p for p in PALETTE if p[0] == accent), PALETTE[0])
         self.accent = farbe[3] if self.hell else farbe[2]
         self.accent_hover = shift(self.accent, 0.88 if self.hell else 1.14)
@@ -191,7 +217,9 @@ class Theme:
             font-size: 13px;
             font-weight: 400;
         }}
-        #Fenster {{ background: {t.bg}; }}
+        /* Der Fenstergrund wird gezeichnet, nicht gefuellt – MainWindow malt
+           dort das farbige Licht, durch das die Scheiben schimmern. */
+        #Fenster {{ background: transparent; }}
 
         /* Karte, Leiste und Profilleiste zeichnen sich selbst –
            siehe widgets.Flaeche. Hier stehen nur die Schriften. */
@@ -293,22 +321,35 @@ class Theme:
             min-width: 44px; max-width: 44px;
             min-height: 44px; max-height: 44px;
         }}
-        QPushButton#Rund:hover {{ background: {t.card2}; }}
-        QPushButton#Rund:pressed {{ background: {mix(t.card2, t.fg, 0.10)}; }}
+        QPushButton#Rund:hover {{
+            background: {"rgba(255,255,255,0.10)" if not t.hell else t.card2};
+        }}
+        QPushButton#Rund:pressed {{
+            background: {"rgba(255,255,255,0.16)" if not t.hell
+                         else mix(t.card2, t.fg, 0.10)};
+        }}
+        /* Nicht gewaehlte Chips sind Glas, keine schwarzen Bloecke: Auf
+           einer durchscheinenden Karte stanzt ein Vollton ein Loch. */
         QPushButton#Chip {{
-            background: {t.senke};
+            background: {"rgba(255,255,255,0.08)" if not t.hell else t.senke};
             border-radius: 10px;
             padding: 8px 15px;
             font-weight: 600;
         }}
-        QPushButton#Chip:hover {{ background: {mix(t.senke, t.fg, 0.10)}; }}
+        QPushButton#Chip:hover {{
+            background: {"rgba(255,255,255,0.15)" if not t.hell
+                         else mix(t.senke, t.fg, 0.10)};
+        }}
         QPushButton#Chip:checked {{ background: {t.accent}; color: #FFFFFF; }}
         QPushButton#Flach {{
             background: transparent;
             padding: 4px;
             border-radius: 9px;
         }}
-        QPushButton#Flach:hover {{ background: {mix(t.card, t.fg, 0.10)}; }}
+        QPushButton#Flach:hover {{
+            background: {"rgba(255,255,255,0.10)" if not t.hell
+                         else mix(t.card, t.fg, 0.10)};
+        }}
 
         /* Schieberegler (in den Einstellungen; der Lautstaerkeregler
            zeichnet sich selbst) */
@@ -347,10 +388,12 @@ class Theme:
 
         /* Schalter (in ToggleSwitch selbst gezeichnet) */
 
-        /* Eingabefeld */
+        /* Eingabefeld – ebenfalls Glas. Als Vertiefung sass hier ein
+           schwarzes Loch mitten in der Scheibe. */
         QLineEdit {{
-            background: {t.senke};
-            border: 1px solid transparent;
+            background: {"rgba(255,255,255,0.09)" if not t.hell else t.senke};
+            border: 1px solid {"rgba(255,255,255,0.16)" if not t.hell
+                               else t.stroke};
             border-radius: 9px;
             padding: 6px 11px;
             font-size: 12px;

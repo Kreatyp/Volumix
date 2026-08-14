@@ -19,31 +19,38 @@ from .sprache import T
 from .theme import mix
 
 
-def flaeche_zeichnen(p, theme, rechteck, radius):
-    """Erhabene Flaeche: leichter Verlauf und eine feine Lichtkante oben.
+def _milch(deckkraft):
+    c = QColor(255, 255, 255)
+    c.setAlphaF(max(0.0, min(1.0, deckkraft)))
+    return c
 
-    Die Lichtkante ist der Unterschied zwischen „Rechteck in einem anderen
-    Grauton“ und einer Flaeche, die wirklich im Raum liegt. Ueber die
-    Stilvorlage geht das nicht – Qt zieht einen Rahmen rundherum, hier soll
-    er nach unten auslaufen, so wie Licht von oben faellt.
+
+def flaeche_zeichnen(p, theme, rechteck, radius):
+    """Milchige Scheibe ueber dem farbigen Grund.
+
+    Nach oben etwas dichter als nach unten, dazu eine Lichtkante an der
+    Oberkante, die nach unten auslaeuft – so wie Licht von oben faellt.
+    Ueber die Stilvorlage geht das nicht: Qt zieht einen Rahmen rundherum.
+
+    Vorher waren das Volltoene mit leichtem Verlauf. Der Unterschied ist,
+    dass jetzt der Grund durchscheint – deshalb steht dort ueberhaupt
+    farbiges Licht, sonst waere Glas nur ein anderes Grau.
     """
+    glas = theme.glas
     g = QLinearGradient(rechteck.left(), rechteck.top(),
                         rechteck.left(), rechteck.bottom())
-    g.setColorAt(0.0, QColor(theme.card_top))
-    g.setColorAt(1.0, QColor(theme.card_bottom))
+    g.setColorAt(0.0, _milch(glas["deckung"]))
+    g.setColorAt(1.0, _milch(glas["deckung"] * 0.42))
     p.setPen(Qt.NoPen)
     p.setBrush(g)
     p.drawRoundedRect(rechteck, radius, radius)
 
-    licht = QColor(*theme.kante)
-    aus = QColor(licht)
-    aus.setAlpha(0)
     saum = QLinearGradient(rechteck.left(), rechteck.top(), rechteck.left(),
-                           rechteck.top() + max(12.0, rechteck.height() * 0.55))
-    saum.setColorAt(0.0, licht)
-    saum.setColorAt(1.0, aus)
+                           rechteck.top() + max(14.0, rechteck.height() * 0.6))
+    saum.setColorAt(0.0, _milch(glas["licht"]))
+    saum.setColorAt(1.0, _milch(0.0))
     p.setBrush(Qt.NoBrush)
-    p.setPen(QPen(QBrush(saum), 1.0))
+    p.setPen(QPen(QBrush(saum), 1.2))
     p.drawRoundedRect(rechteck, radius, radius)
 
 
@@ -345,10 +352,14 @@ class VolumeSlider(Slider):
         anteil = self.value() / 100.0
         fuell_breite = knopf / 2.0 + weg * anteil
 
-        # Schiene – eine Vertiefung, deshalb dunkler als die Karte und mit
-        # einem angedeuteten Schatten an der oberen Innenkante.
+        # Schiene – eine Vertiefung, deshalb dunkler als die Scheibe und mit
+        # einem angedeuteten Schatten an der oberen Innenkante. Sie ist
+        # durchscheinendes Schwarz statt eines festen Farbtons: Auf Glas
+        # sitzt sonst ein Loch, in dem der Grund gar nicht mehr vorkommt.
+        tief = QColor(0, 0, 0)
+        tief.setAlphaF(t.glas["schiene"])
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(t.senke))
+        p.setBrush(tief)
         p.drawRoundedRect(QRectF(0, y, self.width(), h), h / 2.0, h / 2.0)
         schatten = QColor(0, 0, 0, 46 if not t.hell else 26)
         p.setBrush(Qt.NoBrush)
@@ -864,15 +875,18 @@ class _Kaestchen(QWidget):
         p.setRenderHint(QPainter.Antialiasing, True)
         r = QRectF(0.5, 0.5, self.width() - 1, self.height() - 1)
         if self._an:
-            grund = QColor(t.accent)
-            if self._hover:
-                grund = QColor(t.accent_hover)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(t.accent_hover if self._hover else t.accent))
         else:
-            grund = QColor(t.off)
-            if self._hover:
-                grund = QColor(t.off).lighter(125)
-        p.setPen(Qt.NoPen)
-        p.setBrush(grund)
+            # Leer heisst leer: ein Glasrahmen. Ein gefuellter grauer Block
+            # sass als Fleck auf der Scheibe und sah ausserdem aus wie ein
+            # gesperrter Knopf.
+            hell = not t.hell
+            p.setPen(QPen(_milch(0.34 if self._hover else 0.24) if hell
+                          else QColor(mix(t.stroke, t.fg, 0.25)), 1.4))
+            p.setBrush(_milch(0.10 if self._hover else 0.05) if hell
+                       else QColor(t.senke))
+            r = r.adjusted(0.3, 0.3, -0.3, -0.3)
         p.drawRoundedRect(r, 7, 7)
         if self._an:
             pfad = QPainterPath()
@@ -914,9 +928,17 @@ class FadeScroll(QWidget):
         if not (self.oben or self.unten):
             return
         p = QPainter(self)
-        oben_farbe = (self.theme.card_top if self.auf_karte else self.theme.bg)
-        farbe = QColor(self.theme.card_bottom if self.auf_karte
-                       else self.theme.bg)
+        # Die Blende muss die Farbe haben, die an dieser Stelle unter ihr
+        # liegt – auf der Glasscheibe also Grund plus Milchanteil. Mit der
+        # alten Kartenfarbe stuende hier ein heller Balken quer im Fenster.
+        t = self.theme
+        if self.auf_karte:
+            deck = t.glas["deckung"]
+            oben_farbe = mix(t.bg, "#FFFFFF", deck)
+            farbe = QColor(mix(t.bg, "#FFFFFF", deck * 0.42))
+        else:
+            oben_farbe = t.bg
+            farbe = QColor(t.bg)
         w, h = self.width(), self.height()
         if self.oben:
             g = QLinearGradient(0, 0, 0, self.hoehe)
