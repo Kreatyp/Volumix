@@ -25,6 +25,18 @@ def _milch(deckkraft):
     return c
 
 
+def bahn_farbe(theme):
+    """Der leere Teil einer Reglerbahn.
+
+    Im Dunkeln heller als die Flaeche darunter, im Hellen dunkler. Wer im
+    Dunkeln eine Vertiefung durch Dunkelheit zeigen will, hat keinen Platz
+    mehr: Der Boden ist schon fast schwarz, und die Bahn verschwindet.
+    """
+    c = QColor(0, 0, 0) if theme.hell else QColor(255, 255, 255)
+    c.setAlphaF(max(0.0, min(1.0, theme.glas["schiene"])))
+    return c
+
+
 def glasgrund_zeichnen(p, theme, rechteck, radius, schimmer=1.0):
     """Deckender Untergrund fuer Flaechen ausserhalb des Fensters.
 
@@ -387,14 +399,11 @@ class VolumeSlider(Slider):
         anteil = self.value() / 100.0
         fuell_breite = knopf / 2.0 + weg * anteil
 
-        # Schiene – eine Vertiefung, deshalb dunkler als die Scheibe und mit
-        # einem angedeuteten Schatten an der oberen Innenkante. Sie ist
-        # durchscheinendes Schwarz statt eines festen Farbtons: Auf Glas
-        # sitzt sonst ein Loch, in dem der Grund gar nicht mehr vorkommt.
-        tief = QColor(0, 0, 0)
-        tief.setAlphaF(t.glas["schiene"])
+        # Schiene – im Dunkeln ein heller Kanal, im Hellen ein dunkler,
+        # siehe bahn_farbe. Dazu ein angedeuteter Schatten an der oberen
+        # Innenkante, damit sie vertieft wirkt statt aufgelegt.
         p.setPen(Qt.NoPen)
-        p.setBrush(tief)
+        p.setBrush(bahn_farbe(t))
         p.drawRoundedRect(QRectF(0, y, self.width(), h), h / 2.0, h / 2.0)
         schatten = QColor(0, 0, 0, 46 if not t.hell else 26)
         p.setBrush(Qt.NoBrush)

@@ -83,13 +83,14 @@ LIGHT = {
 #
 # Gemessen am fertigen Bild, als Abstand Scheibe zu Grund in wahrgenommener
 # Helligkeit: 4,1 bei der ersten Fassung, 7,9 mit diesen Werten.
-# Die Schiene haengt am Grund, nicht an sich selbst. Auf dem hellen Glas von
-# frueher brauchte sie 88 % Schwarz, um sich abzusetzen; auf dem jetzt viel
-# dunkleren Grund verschluckt derselbe Wert sie – gemessen sank die Bahn auf
-# L* 1,5 und war als Vertiefung nicht mehr zu erkennen, nur noch als Loch.
-# Mit 62 % liegt sie bei L* 5,1: dunkler als die Scheibe darueber (18,5),
-# aber heller als der Fenstergrund (4,3), also sichtbar als das, was sie
-# ist.
+# `schiene` ist der leere Teil der Reglerbahn – und im Dunkeln ist er ein
+# HELLER Kanal, kein dunkler. Eine Vertiefung laesst sich nicht durch
+# Dunkelheit darstellen, wenn der Boden schon fast schwarz ist: Gemessen in
+# der Einblendung lag die schwarze Bahn 0,3 Punkte von ihrer Umgebung
+# entfernt, war also schlicht nicht da. Als Weiss mit 12 % sind es 13,4.
+#
+# Im hellen Modus bleibt es umgekehrt: dort ist der Kanal dunkler als seine
+# Umgebung, denn dort ist Platz nach unten.
 # Am Fenstergrund zu drehen bringt fuer den Gesamteindruck fast nichts: Er
 # ist nur ein schmaler Rahmen, die Scheiben fuellen die Flaeche. Der Grund
 # ging ueber mehrere Runden von L* 10,4 auf 4,3 herunter – sichtbar war das
@@ -109,7 +110,7 @@ LIGHT = {
 # Text, bunte App-Symbole und die Regler – sie bestimmen den
 # Helligkeitseindruck staerker als alle Flaechen zusammen.
 GLAS_DUNKEL = {"schimmer": 0.15, "weite": 0.72, "deckung": 0.07,
-               "licht": 0.58, "schiene": 0.46}
+               "licht": 0.58, "schiene": 0.12}
 # Im Hellen traegt weisse Milch auf hellem Grund nichts – dort ist die
 # Scheibe fast deckend und der Schimmer zurueckhaltender, sonst wird das
 # Fenster bunt statt hell.

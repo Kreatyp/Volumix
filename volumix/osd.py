@@ -14,7 +14,8 @@ from PySide6.QtWidgets import QWidget
 from . import icons
 from .theme import glaettung, schrift
 from .theme import OSD_DECKUNG, OSD_SCHIMMER
-from .widgets import flaeche_zeichnen, glasgrund_zeichnen
+from .widgets import (bahn_farbe, flaeche_zeichnen,
+                      glasgrund_zeichnen)
 
 
 class Osd(QWidget):
@@ -205,7 +206,7 @@ class Osd(QWidget):
         bh = 8 * f
         schiene = QRectF(x, mitte - bh / 2, max(20.0, balken_rechts - x), bh)
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(t.senke))
+        p.setBrush(bahn_farbe(t))
         p.drawRoundedRect(schiene, bh / 2, bh / 2)
         if self._text is None and self._gezeigt > 0:
             voll = QRectF(schiene)
