@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QWidget
 
 from . import icons
 from .theme import glaettung, schrift
-from .widgets import flaeche_zeichnen
+from .widgets import flaeche_zeichnen, glasgrund_zeichnen
 
 
 class Osd(QWidget):
@@ -160,6 +160,9 @@ class Osd(QWidget):
             p.drawRoundedRect(karte.adjusted(-i, -i + i * 0.4, i, i + i * 0.4),
                               radius + i, radius + i)
 
+        # Erst der eigene Grund, dann die Scheibe darauf: Ueber dem Desktop
+        # hat das Glas sonst nichts, durch das es scheinen koennte.
+        glasgrund_zeichnen(p, t, karte, radius)
         flaeche_zeichnen(p, t, karte, radius)
 
         dpr = self.devicePixelRatioF()

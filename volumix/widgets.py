@@ -25,7 +25,38 @@ def _milch(deckkraft):
     return c
 
 
-def flaeche_zeichnen(p, theme, rechteck, radius):
+def glasgrund_zeichnen(p, theme, rechteck, radius):
+    """Deckender Untergrund fuer Flaechen ausserhalb des Fensters.
+
+    Die Einblendung schwebt ueber dem Desktop. Dort ist eine Milchglas-
+    scheibe fast unsichtbar: Sie lebt davon, dass etwas durch sie
+    hindurchscheint, und ueber fremdem Bild ist das nichts Bestimmtes.
+    Deshalb bringt sie ihren Grund selbst mit – dieselbe dunkle Flaeche mit
+    demselben farbigen Licht wie das Fenster, nur eben deckend.
+    """
+    from PySide6.QtGui import QRadialGradient
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(theme.bg))
+    p.drawRoundedRect(rechteck, radius, radius)
+
+    pfad = QPainterPath()
+    pfad.addRoundedRect(rechteck, radius, radius)
+    p.save()
+    p.setClipPath(pfad)
+    akzent = QColor(theme.accent)
+    g = QRadialGradient(rechteck.left() + rechteck.width() * 0.22,
+                        rechteck.top(), rechteck.width() * 0.85)
+    innen, aussen = QColor(akzent), QColor(akzent)
+    innen.setAlphaF(min(1.0, theme.glas["schimmer"] * 0.75))
+    aussen.setAlphaF(0.0)
+    g.setColorAt(0.0, innen)
+    g.setColorAt(1.0, aussen)
+    p.setBrush(g)
+    p.drawRect(rechteck)
+    p.restore()
+
+
+def flaeche_zeichnen(p, theme, rechteck, radius, licht=1.0):
     """Milchige Scheibe ueber dem farbigen Grund.
 
     Nach oben etwas dichter als nach unten, dazu eine Lichtkante an der
@@ -45,9 +76,12 @@ def flaeche_zeichnen(p, theme, rechteck, radius):
     p.setBrush(g)
     p.drawRoundedRect(rechteck, radius, radius)
 
+    # `licht` daempft die Kante fuer kleine Flaechen: Der Verlauf laeuft
+    # ueber 60 % der Hoehe aus, und auf der flachen Einblendung wird daraus
+    # ein weisser Rahmen statt eines Lichtsaums.
     saum = QLinearGradient(rechteck.left(), rechteck.top(), rechteck.left(),
                            rechteck.top() + max(14.0, rechteck.height() * 0.6))
-    saum.setColorAt(0.0, _milch(glas["licht"]))
+    saum.setColorAt(0.0, _milch(glas["licht"] * licht))
     saum.setColorAt(1.0, _milch(0.0))
     p.setBrush(Qt.NoBrush)
     p.setPen(QPen(QBrush(saum), 1.2))
