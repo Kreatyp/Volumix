@@ -150,32 +150,66 @@ def _render(svg, groesse, dpr):
 
 
 def app_logo(groesse, farbe, dpr=1.0):
-    """Programmsymbol: ein runder Knopf mit zwei Regelwegen.
+    """Programmsymbol: drei stehende Regler, jeder auf seinem Stand.
 
-    Zwei Bahnen mit Knoepfen an verschiedenen Stellen – genau das, was das
-    Programm macht: mehrere Lautstaerken, unabhaengig voneinander. Die runde
-    Grundform ist Absicht; in der Taskleiste steht sonst ein abgerundetes
-    Quadrat neben zwanzig anderen abgerundeten Quadraten.
+    Genau das, was das Programm macht – mehrere Lautstaerken, unabhaengig
+    voneinander. Kein runder Koerper darum: In der Taskleiste steht sonst
+    ein blauer Kreis neben zwanzig anderen blauen Kreisen, und die Silhouette
+    ist das Einzige, woran man ein Symbol bei 16 px noch erkennt.
 
-    Bewusst grob gehalten: bei 16 px zerfaellt jedes feinere Motiv.
+    Vier Dinge, die beim Vergleich der Entwuerfe den Ausschlag gaben:
+
+    Es sind **drei** Bahnen, nicht zwei. Nebeneinander auf weissem Grund
+    gefiel die Zweier-Fassung besser, im Fenster aber steht das Symbol neben
+    der fetten Wortmarke und zwischen runden App-Symbolen – dort liest sich
+    das schmale Paar wie ein Pause-Zeichen. Erst mit der dritten Bahn hat es
+    genug Masse fuer das Feld, in dem es sitzt.
+
+    Der Knopf liegt **ganz innerhalb** der Bahn. Ragte er darueber hinaus,
+    verschwaende sein weisser Rand auf hellem Untergrund – im hellen
+    Windows-Design frisst er dann Loecher in den Regler. Nachgestellt und
+    angesehen; ohne Koerper darunter ist das kein Schoenheitsfehler mehr.
+
+    Die beiden Bahnen sind **verschieden eingefaerbt**, nicht verschieden
+    deckend. Halbtransparenz gibt auf farbigem Grund Matsch statt Kanten –
+    das war der Hauptgrund, warum das alte Symbol billig aussah.
+
+    Unter jedem Knopf sitzt ein **dunkler Kreis mit 0,7 px Versatz**. Ein
+    echter Schatten ginge nicht, QPainter kann nicht weichzeichnen; dieser
+    reicht, damit der Knopf aufliegt statt aufgemalt zu wirken.
     """
     schluessel = ("logo", groesse, farbe, round(dpr, 2))
     fertig = _svg_cache.get(schluessel)
     if fertig is not None:
         return fertig
     heller = QColor(farbe).lighter(122).name()
+    dunkler = QColor(farbe).darker(125).name()
+    # Bahn 11 breit, Luecke 3,5: Bei 2 px Luecke laufen die drei bei 16 px
+    # zu einem Block zusammen – nachgesehen, nicht geschaetzt.
+    knopf = ('<circle cx="{x}" cy="{ys}" r="3.7" fill="#0B1B33"'
+             ' opacity="0.18"/>'
+             '<circle cx="{x}" cy="{y}" r="3.7" fill="url(#k)"/>')
+    bahn = ('<rect x="{x}" y="6" width="11" height="36" rx="5.5"'
+            ' fill="url(#{w})"/>')
     svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">'
-           '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">'
+           '<defs>'
+           '<linearGradient id="a" x1="0" y1="0" x2="0" y2="1">'
            '<stop offset="0" stop-color="{h}"/><stop offset="1" stop-color="{f}"/>'
-           '</linearGradient></defs>'
-           '<circle cx="24" cy="24" r="23" fill="url(#g)"/>'
-           '<rect x="9" y="14" width="30" height="6" rx="3"'
-           ' fill="#FFFFFF" opacity="0.3"/>'
-           '<circle cx="17" cy="17" r="6.5" fill="#FFFFFF" opacity="0.55"/>'
-           '<rect x="9" y="28" width="30" height="6" rx="3"'
-           ' fill="#FFFFFF" opacity="0.3"/>'
-           '<circle cx="31" cy="31" r="6.5" fill="#FFFFFF"/>'
-           '</svg>').format(h=heller, f=farbe)
+           '</linearGradient>'
+           '<linearGradient id="b" x1="0" y1="0" x2="0" y2="1">'
+           '<stop offset="0" stop-color="{f}"/><stop offset="1" stop-color="{d}"/>'
+           '</linearGradient>'
+           '<linearGradient id="k" x1="0" y1="0" x2="0" y2="1">'
+           '<stop offset="0" stop-color="#FFFFFF"/>'
+           '<stop offset="1" stop-color="#DCE6F4"/>'
+           '</linearGradient>'
+           '</defs>'
+           + bahn.format(x=4, w="a") + bahn.format(x=18.5, w="b")
+           + bahn.format(x=33, w="a")
+           + knopf.format(x=9.5, y=32, ys=32.7)
+           + knopf.format(x=24, y=17, ys=17.7)
+           + knopf.format(x=38.5, y=26, ys=26.7) +
+           '</svg>').format(h=heller, f=farbe, d=dunkler)
     pm = _render(svg, groesse, dpr)
     _svg_cache[schluessel] = pm
     return pm
