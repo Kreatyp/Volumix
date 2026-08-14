@@ -83,13 +83,18 @@ LIGHT = {
 #
 # Gemessen am fertigen Bild, als Abstand Scheibe zu Grund in wahrgenommener
 # Helligkeit: 4,1 bei der ersten Fassung, 7,9 mit diesen Werten.
+# Die Schiene ist der eine Wert, der nicht nach Geschmack geht: Sie muss
+# sich von der Scheibe absetzen, sonst sieht man nicht, wo der Regler noch
+# hinkann. Gemessen als Helligkeitsunterschied zwischen leerer Bahn und dem
+# Glas daneben: 13,9 bei 55 % – da verschwimmt sie –, 19,5 bei 88 %. Ganz
+# schwarz waeren es 21,0, das wirkt aber hart und wie ein Loch.
 GLAS_DUNKEL = {"schimmer": 0.38, "weite": 0.72, "deckung": 0.16,
-               "licht": 0.42, "schiene": 0.55}
+               "licht": 0.42, "schiene": 0.88}
 # Im Hellen traegt weisse Milch auf hellem Grund nichts – dort ist die
 # Scheibe fast deckend und der Schimmer zurueckhaltender, sonst wird das
 # Fenster bunt statt hell.
 GLAS_HELL = {"schimmer": 0.20, "weite": 0.85, "deckung": 0.82,
-             "licht": 0.95, "schiene": 0.10}
+             "licht": 0.95, "schiene": 0.24}
 
 
 def schrift():
