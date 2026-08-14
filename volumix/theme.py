@@ -83,18 +83,26 @@ LIGHT = {
 #
 # Gemessen am fertigen Bild, als Abstand Scheibe zu Grund in wahrgenommener
 # Helligkeit: 4,1 bei der ersten Fassung, 7,9 mit diesen Werten.
-# Die Schiene ist der eine Wert, der nicht nach Geschmack geht: Sie muss
-# sich von der Scheibe absetzen, sonst sieht man nicht, wo der Regler noch
-# hinkann. Gemessen als Helligkeitsunterschied zwischen leerer Bahn und dem
-# Glas daneben: 13,9 bei 55 % – da verschwimmt sie –, 19,5 bei 88 %. Ganz
-# schwarz waeren es 21,0, das wirkt aber hart und wie ein Loch.
+# Die Schiene haengt am Grund, nicht an sich selbst. Auf dem hellen Glas von
+# frueher brauchte sie 88 % Schwarz, um sich abzusetzen; auf dem jetzt viel
+# dunkleren Grund verschluckt derselbe Wert sie – gemessen sank die Bahn auf
+# L* 1,5 und war als Vertiefung nicht mehr zu erkennen, nur noch als Loch.
+# Mit 62 % liegt sie bei L* 5,1: dunkler als die Scheibe darueber (18,5),
+# aber heller als der Fenstergrund (4,3), also sichtbar als das, was sie
+# ist.
 # Beim Abdunkeln nicht alles gleichmaessig senken: Dann faellt der Abstand
-# mit und die Flaechen verlieren ihre Kante. Gemessen im fertigen Bild –
-# alles um denselben Anteil runter ergab Grund L* 8,2 bei Abstand 6,8; nur
-# den Grund gesenkt und die Scheibe gehalten ergibt Grund L* 6,3 bei
-# Abstand 9,7. Also dunkler UND deutlicher als vorher (10,4 bei 8,0).
-GLAS_DUNKEL = {"schimmer": 0.24, "weite": 0.72, "deckung": 0.155,
-               "licht": 0.40, "schiene": 0.88}
+# mit und die Flaechen verlieren ihre Kante. Gesenkt wird nur der Schimmer,
+# die Scheibe steigt sogar leicht. Gemessen im fertigen Bild, ueber die
+# Runden hinweg:
+#
+#   Schimmer 38 %   Grund L* 10,4   Scheibe 18,4   Abstand  8,0
+#   Schimmer 24 %   Grund L*  6,3   Scheibe 19,1   Abstand 12,7
+#   Schimmer 15 %   Grund L*  4,3   Scheibe 18,5   Abstand 14,2
+#
+# Der Grund ist damit weniger als halb so hell wie zu Beginn, und der
+# Abstand fast doppelt so gross.
+GLAS_DUNKEL = {"schimmer": 0.15, "weite": 0.72, "deckung": 0.175,
+               "licht": 0.40, "schiene": 0.62}
 # Im Hellen traegt weisse Milch auf hellem Grund nichts – dort ist die
 # Scheibe fast deckend und der Schimmer zurueckhaltender, sonst wird das
 # Fenster bunt statt hell.
@@ -109,8 +117,8 @@ GLAS_HELL = {"schimmer": 0.20, "weite": 0.85, "deckung": 0.82,
 # Gemessen als mittlere Helligkeit ihrer Flaeche: L* 13,9 mit den vollen
 # Werten, 6,0 mit diesen. Noch weiter (L* 4,1) verschluckt der Grund den
 # leeren Teil der Reglerbahn – dann sieht man nicht mehr, wo sie aufhoert.
-OSD_SCHIMMER = 0.30        # Anteil am Schimmer des Fensters
-OSD_DECKUNG = 0.40         # Anteil an der Dichte der Scheibe
+OSD_SCHIMMER = 0.48        # Anteil am Schimmer des Fensters
+OSD_DECKUNG = 0.36         # Anteil an der Dichte der Scheibe
 
 
 def schrift():
