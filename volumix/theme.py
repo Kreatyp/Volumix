@@ -90,19 +90,26 @@ LIGHT = {
 # Mit 62 % liegt sie bei L* 5,1: dunkler als die Scheibe darueber (18,5),
 # aber heller als der Fenstergrund (4,3), also sichtbar als das, was sie
 # ist.
-# Beim Abdunkeln nicht alles gleichmaessig senken: Dann faellt der Abstand
-# mit und die Flaechen verlieren ihre Kante. Gesenkt wird nur der Schimmer,
-# die Scheibe steigt sogar leicht. Gemessen im fertigen Bild, ueber die
-# Runden hinweg:
+# Am Fenstergrund zu drehen bringt fuer den Gesamteindruck fast nichts: Er
+# ist nur ein schmaler Rahmen, die Scheiben fuellen die Flaeche. Der Grund
+# ging ueber mehrere Runden von L* 10,4 auf 4,3 herunter – sichtbar war das
+# kaum. Erst die Scheibe selbst aendert etwas:
 #
-#   Schimmer 38 %   Grund L* 10,4   Scheibe 18,4   Abstand  8,0
-#   Schimmer 24 %   Grund L*  6,3   Scheibe 19,1   Abstand 12,7
-#   Schimmer 15 %   Grund L*  4,3   Scheibe 18,5   Abstand 14,2
+#   Scheibe 17,5 %   Fenster im Mittel L* 24,0   Abstand zum Grund 11,5
+#   Scheibe 13 %     Fenster im Mittel L* 22,0   Abstand  8,3
+#   Scheibe 10 %     Fenster im Mittel L* 20,8   Abstand  5,8
+#   Scheibe  7 %     Fenster im Mittel L* 19,8   Abstand  3,7
 #
-# Der Grund ist damit weniger als halb so hell wie zu Beginn, und der
-# Abstand fast doppelt so gross.
-GLAS_DUNKEL = {"schimmer": 0.15, "weite": 0.72, "deckung": 0.175,
-               "licht": 0.40, "schiene": 0.62}
+# Bei 7 % traegt nicht mehr die Flaeche die Abgrenzung, sondern die Kante –
+# deshalb steht `licht` hoeher als vorher. Ohne das verschmelzen die Karten
+# mit dem Grund.
+#
+# Auch das zeigt die Messung: Zwischen der hellsten und der dunkelsten
+# Stufe liegen nur vier Punkte im Fenstermittel. Den Rest tragen weisser
+# Text, bunte App-Symbole und die Regler – sie bestimmen den
+# Helligkeitseindruck staerker als alle Flaechen zusammen.
+GLAS_DUNKEL = {"schimmer": 0.15, "weite": 0.72, "deckung": 0.07,
+               "licht": 0.58, "schiene": 0.46}
 # Im Hellen traegt weisse Milch auf hellem Grund nichts – dort ist die
 # Scheibe fast deckend und der Schimmer zurueckhaltender, sonst wird das
 # Fenster bunt statt hell.
