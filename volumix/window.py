@@ -1957,7 +1957,9 @@ class AppsDialog(QDialog):
 
         aussen = QVBoxLayout(self)
         aussen.setContentsMargins(0, 0, 0, 0)
-        karte = Flaeche(parent.theme, 16)
+        # Eigenes Fenster: Die Scheibe braucht ihren Grund selbst, sonst
+        # steht der Dialog fast unsichtbar ueber dem Schreibtisch.
+        karte = Flaeche(parent.theme, 16, eigener_grund=True)
         karte.setObjectName("Karte")
         aussen.addWidget(karte)
         self.setStyleSheet(parent.theme.qss())

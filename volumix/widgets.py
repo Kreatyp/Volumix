@@ -102,22 +102,29 @@ def flaeche_zeichnen(p, theme, rechteck, radius, licht=1.0, deckung=1.0):
 
 
 class Flaeche(QFrame):
-    """Karte, Leiste, Profilleiste – alle mit demselben Aufbau."""
+    """Karte, Leiste, Profilleiste – alle mit demselben Aufbau.
 
-    def __init__(self, theme, radius=16, parent=None):
+    `eigener_grund` ist fuer Flaechen, die nicht im Fenster liegen, sondern
+    ein eigenes Fenster sind: der Auswahldialog etwa. Im Fenster scheint der
+    Grund mit seinem farbigen Licht durch die Scheibe; ein eigenes Fenster
+    hat nichts dergleichen unter sich und waere fast durchsichtig.
+    """
+
+    def __init__(self, theme, radius=16, parent=None, eigener_grund=False):
         super().__init__(parent)
         self.theme = theme
         self.radius = radius
+        self.eigener_grund = eigener_grund
 
     def paintEvent(self, e):
         if self.theme is None:
             return
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
-        flaeche_zeichnen(p, self.theme,
-                         QRectF(0.5, 0.5, self.width() - 1.0,
-                                self.height() - 1.0),
-                         self.radius)
+        flaeche = QRectF(0.5, 0.5, self.width() - 1.0, self.height() - 1.0)
+        if self.eigener_grund:
+            glasgrund_zeichnen(p, self.theme, flaeche, self.radius)
+        flaeche_zeichnen(p, self.theme, flaeche, self.radius)
 
 
 def _verblassen(pm, deckkraft):
