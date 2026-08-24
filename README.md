@@ -145,8 +145,9 @@ frei kombinierbar und wirken sofort. Schneller geht der Modus über das
 **Mond/Sonne-Symbol**.
 
 Darunter **Sprache** (Deutsch oder English – die Oberfläche baut sich beim
-Wechsel neu auf und ist sofort umgestellt) und **Mit Windows starten**, das
-einen Autostart-Eintrag anlegt.
+Wechsel neu auf und ist sofort umgestellt), **Mit Windows starten**, das
+einen Autostart-Eintrag anlegt, und **Anzeige an Spiele weitergeben** –
+siehe unten.
 
 ### Steuerung
 
@@ -201,6 +202,51 @@ Discord), bleiben unangetastet.
 > Beim Umrechnen geht Volumix über Dezibel: Es klingt nach dem Wechsel
 > **exakt gleich laut**, auch wenn die Zahl auf der anderen Seite anders
 > steht. Kein Rundungsfehler.
+
+## Im Vollbild: Anzeige an Spiele weitergeben
+
+Im Vollbild liegt die Einblendung **hinter** dem Spiel. Das ist keine
+Einstellung, die man umlegen könnte, sondern die Art, wie Windows Vollbild
+zeichnet: Dort gehört der Bildschirm dem Spiel, und ein fremdes Fenster
+kommt nicht davor – auch keines, das sich „immer im Vordergrund" nennt.
+
+Wer die Anzeige dort trotzdem sehen will, braucht ein Spiel, das sie selbst
+zeichnet. Dafür gibt es unter *Einstellungen → Allgemein* den Schalter
+**Anzeige an Spiele weitergeben**. Volumix hält dann einen Anschluss auf
+`127.0.0.1:48765` bereit und schickt bei jeder Änderung eine Zeile:
+
+```json
+{"typ": "lautstaerke", "app": "discord.exe", "name": "Discord",
+ "prozent": 57, "stumm": false, "farbe": "#7C5CFF"}
+```
+
+Beim ersten Mal je App liegt zusätzlich ihr Symbol als PNG bei. Danach
+nicht mehr – es ist einige Kilobyte groß, und bei jeder Rastung am Rad wäre
+das ein Vielfaches der eigentlichen Nachricht.
+
+> **Es wird nur gesendet, nie empfangen.** Über diesen Weg kann niemand die
+> Lautstärke verstellen; was nichts entgegennimmt, kann auch nichts
+> Falsches entgegennehmen. Der Anschluss hängt ausdrücklich an der
+> Loopback-Adresse und ist nur von diesem Rechner aus erreichbar. Ab Werk
+> ist die Sache **aus** – was einen Lauscher aufmacht, soll man einschalten
+> müssen.
+
+### Minecraft
+
+Für Minecraft 1.21.1 gibt es die passende Mod, in zwei Fassungen: eine für
+**Forge**, eine für **NeoForge**. Sie hört zu und zeichnet die Anzeige ins
+Spielbild. Beide liegen dem Release bei.
+
+Größe, Ort und Standzeit stehen in `config/volumix-client.toml`; bei
+NeoForge kommt man im Spiel unter *Mods → Volumix → Konfigurieren* daran.
+
+| | |
+|---|---|
+| `groesse` | 0,5 bis 3,0 – kommt zur Oberflächen-Skalierung hinzu |
+| `x` | 0–100 % der Bildbreite, 50 ist die Mitte |
+| `y` | 0–100 % der Bildhöhe, ab Werk 78 |
+| `stehen_ms` | wie lange sie steht, danach blendet sie aus |
+| `im_menue` | auch bei offenem Inventar oder Pausenmenü zeigen |
 
 ## Alle Regler auf einer Kurve
 
