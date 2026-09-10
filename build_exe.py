@@ -153,11 +153,54 @@ def verknuepfung_anlegen(ziel):
         print("Verknuepfung nicht angelegt:", e)
 
 
+# Fassungsnummer der Anwendung. Steht in der Versionsressource der .exe und
+# taucht damit in den Dateieigenschaften auf.
+FASSUNG = (1, 4, 0, 0)
+
+
+def versionsdatei(pfad):
+    """Schreibt die Angaben, die Windows in den Dateieigenschaften zeigt.
+
+    Ohne sie ist die .exe fuer Windows namenlos: kein Herausgeber, kein
+    Produkt, keine Beschreibung. Fuer die Heuristik eines Virenscanners ist
+    genau das ein Merkmal – eine Datei ohne jede Angabe verhaelt sich wie
+    etwas, das nicht erkannt werden will. Ausserdem sieht ein Nutzer im
+    SmartScreen-Dialog dann wenigstens, wovon die Rede ist.
+
+    040704B0 ist Deutsch (0x0407) in Unicode (1200) – die Sprachkennung, die
+    im selben Block noch einmal als Zahlenpaar steht.
+    """
+    inhalt = """VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers={f}, prodvers={f},
+    mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0,
+    date=(0, 0)),
+  kids=[
+    StringFileInfo([
+      StringTable('040704B0', [
+        StringStruct('CompanyName', 'Luis Wuttig'),
+        StringStruct('FileDescription',
+                     'Volumix – Lautstärke-Mixer für einzelne Apps'),
+        StringStruct('FileVersion', '{v}'),
+        StringStruct('InternalName', 'Volumix'),
+        StringStruct('LegalCopyright', '© Luis Wuttig'),
+        StringStruct('OriginalFilename', 'Volumix.exe'),
+        StringStruct('ProductName', 'Volumix'),
+        StringStruct('ProductVersion', '{v}')])]),
+    VarFileInfo([VarStruct('Translation', [1031, 1200])])])
+""".format(f=FASSUNG, v=".".join(str(x) for x in FASSUNG))
+    with open(pfad, "w", encoding="utf-8") as f:
+        f.write(inhalt)
+    return pfad
+
+
 def main():
     einzeldatei = "--onefile" in sys.argv
     icon_bauen(ICON)
 
     arbeit = os.path.join(tempfile.gettempdir(), "volumix_build")
+    version = versionsdatei(os.path.join(tempfile.gettempdir(),
+                                         "volumix_version.txt"))
     spec = os.path.join(tempfile.gettempdir(), "volumix_spec")
     ziel = os.path.join(HIER, "programm")
 
@@ -166,6 +209,11 @@ def main():
         "--name", "Volumix",
         "--noconsole",
         "--icon", ICON,
+        "--version-file", version,
+        # Nicht komprimieren. Ein gepacktes Programm muss sich zur Laufzeit
+        # selbst entpacken - dasselbe Verhalten, mit dem Schadsoftware ihren
+        # Inhalt verbirgt, und ein Punkt mehr auf der Verdachtsliste.
+        "--noupx",
         "--distpath", ziel,
         "--workpath", arbeit,
         "--specpath", spec,
@@ -174,14 +222,17 @@ def main():
         # Windows (Segoe UI Variable). Sie ist fuer jede Groesse und jede
         # Bildschirmdichte gezeichnet – das kann eine mitgelieferte Datei
         # nicht leisten.
-        # Der Ton am Anschlag – winsound braucht eine echte Datei auf der
-        # Platte, deshalb muss sie mit ins Paket.
-        "--add-data", os.path.join(HIER, "volumix", "toene") + ";volumix/toene",
         # Was PyInstaller nicht von allein findet
         "--hidden-import", "pynput.mouse._win32",
         "--hidden-import", "pynput.keyboard._win32",
         "--collect-submodules", "comtypes",
         "--collect-submodules", "pycaw",
+        # WinRT fuer den laufenden Titel und sein Coverbild. Das sind native
+        # Erweiterungen mit eigenen .pyd-Dateien; `--collect-all` nimmt sie
+        # samt Metadaten mit, sonst faellt die Titelwacht in der gebauten
+        # App stumm auf ihren Notausgang zurueck.
+        "--collect-all", "winrt",
+        "--collect-all", "winrt_runtime",
         # Qt-Teile, die wir nicht brauchen – spart sehr viel Platz
         "--exclude-module", "PySide6.QtWebEngineCore",
         "--exclude-module", "PySide6.QtWebEngineWidgets",

@@ -30,6 +30,7 @@ if os.path.exists(config.CONFIG_PATH):
 
 from volumix import sprache                                    # noqa: E402
 from volumix.config import MASTER_KEY                          # noqa: E402
+import schirm                                                  # noqa: E402
 from volumix.window import MainWindow                          # noqa: E402
 
 fehler = 0
@@ -58,15 +59,22 @@ app = QApplication(sys.argv)
 app.setQuitOnLastWindowClosed(False)
 f = MainWindow()
 f.show()
+schirm.nebenan(f)
 app.processEvents()
 
 print("\n=== Sprachwechsel ===")
-pruefe("startet auf Englisch", "VOLUME MIXER" in texte_im_fenster(f))
+# Geprueft wird am Untertitel im Fensterkopf. Vorher stand hier die
+# Ueberschrift der Mixerkarte – die gibt es nicht mehr, seit
+# Profilzeile und Mixer in einer Karte stecken; sie sagte
+# ohnehin dasselbe wie der Untertitel zwei Zeilen darueber.
+ENGLISCH = "VOLUME MIXER FOR INDIVIDUAL APPS"
+DEUTSCH = "LAUTSTÄRKE-MIXER FÜR EINZELNE APPS"
+pruefe("startet auf Englisch", ENGLISCH in texte_im_fenster(f))
 f._sprache_setzen("de")
 app.processEvents()
 texte = texte_im_fenster(f)
-pruefe("Mixer-Ueberschrift deutsch", "LAUTSTÄRKE-MIXER" in texte)
-pruefe("kein englischer Rest im Kopf", "VOLUME MIXER" not in texte)
+pruefe("Untertitel deutsch", DEUTSCH in texte)
+pruefe("kein englischer Rest im Kopf", ENGLISCH not in texte)
 pruefe("Statusknopf deutsch", f.btn_apps.text() == "Apps wählen")
 pruefe("Einstellung gespeichert", f.cfg["sprache"] == "de")
 
@@ -212,6 +220,21 @@ unvollstaendig = sorted(k for k, v in sprache.TEXTE.items()
                         if len(v) < 2 or not v[0] or not v[1])
 pruefe("alle Texte haben DE und EN", not unvollstaendig,
        ", ".join(unvollstaendig))
+# Ein zweites Mal derselbe Schluessel faellt sonst nirgends auf: Python
+# behaelt stillschweigend den letzten, und die Oberflaeche traegt ploetzlich
+# an einer ganz anderen Stelle den falschen Text. Genau so passiert, als
+# „boxen_an" zugleich Schalter und Zustandsmeldung heissen sollte. Deshalb
+# nicht die Liste zaehlen, sondern den Quelltext.
+import ast                                                    # noqa: E402
+import collections                                            # noqa: E402
+_quelle = open(os.path.join(_PROJEKT, "volumix", "sprache.py"),
+               encoding="utf-8").read()
+_namen = []
+for _knoten in ast.walk(ast.parse(_quelle)):
+    if isinstance(_knoten, ast.Dict) and len(_knoten.keys) > 50:
+        _namen = [k.value for k in _knoten.keys if isinstance(k, ast.Constant)]
+doppelt = sorted(n for n, z in collections.Counter(_namen).items() if z > 1)
+pruefe("kein Schluessel doppelt vergeben", not doppelt, ", ".join(doppelt))
 
 print("\n=== Autostart-Pfad ===")
 befehl = config._startbefehl()

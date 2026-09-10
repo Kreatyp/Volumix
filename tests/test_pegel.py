@@ -25,6 +25,7 @@ config.CONFIG_DIR = _TEST
 config.CONFIG_PATH = os.path.join(_TEST, "config.json")
 
 from volumix.widgets import VolumeSlider                       # noqa: E402
+import schirm                                                  # noqa: E402
 from volumix.window import MainWindow                          # noqa: E402
 
 PY = r"C:\Users\Luis\AppData\Local\Programs\Python\Python313\python.exe"
@@ -35,6 +36,7 @@ app = QApplication(sys.argv)
 app.setQuitOnLastWindowClosed(False)
 f = MainWindow()
 f.show()
+schirm.nebenan(f)
 
 echt = f._meter_uebernehmen
 

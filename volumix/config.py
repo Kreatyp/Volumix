@@ -27,20 +27,34 @@ DEFAULTS = {
     "titel_taste": False,    # Mehrfachdruck auf Wiedergabe/Pause
     "switch_mode": "none",   # was beim Wechsel Gesamt <-> App passiert
     "meters": True,          # Live-Pegel neben den Reglern
-    "ton_anschlag": True,    # kurzer Ton bei voller Lautstaerke
+    "cover_bg": False,       # Coverbild des laufenden Titels als Grund
     # Meldet Aenderungen an Programme auf demselben Rechner, damit sie die
     # Anzeige selbst zeichnen koennen – fuer Spiele im Vollbild, hinter
     # denen die Einblendung sonst liegt. Ab Werk aus: Was einen Lauscher
     # aufmacht, soll man einschalten muessen.
     "melder": False,
     "angleichen": [],        # Apps, deren Lautstaerke angeglichen wird
+    # Lautsprecher im Netz (Raumfeld) auf einen festen Wert bringen. Die
+    # Adresse wird gemerkt, damit nicht bei jedem Start das Netz abgesucht
+    # werden muss – sie ist nur ein Startwert, gefunden wird auch ohne sie.
+    "boxen": False,
+    "boxen_ziel": 65,        # Prozent, 0..100
+    "boxen_schalten": False,  # mit dem Rechner an- und ausschalten
+    "boxen_host": "",
     "osd_enabled": True,
     "osd_size": 45,
     "osd_x": 50,
     "osd_y": 88,
+    # Prozent Durchsicht der Einblendung. 0 steht auf deckend.
+    "osd_klar": 50,
     "sprache": "en",         # "de" oder "en" – Voreinstellung Englisch
     "accent": "violet",      # Schluessel aus theme.PALETTE
     "mode": "dark",
+    # Groesse der Oberflaeche in Prozent. Wird beim Start als
+    # QT_SCALE_FACTOR gesetzt – Qt rechnet damit alles um, auch die
+    # selbst gezeichneten Flaechen. Aenderbar nur mit Neustart, weil der
+    # Wert feststehen muss, bevor Qt hochfaehrt.
+    "skala": 100,            # 75..150
     "hidden": None,          # ausgeblendete Apps (None = Standardliste)
     "known": [],             # je gesehene Apps (Namensspeicher)
     "exes": {},              # key -> Pfad zur Programmdatei
@@ -222,59 +236,115 @@ def _startbefehl():
     return '"{}" "{}" --tray'.format(pyw, ziel)
 
 
+def autostart_lnk():
+    """Wohin die Verknuepfung im Autostart-Ordner gehoert."""
+    return os.path.join(
+        _APPDATA, "Microsoft", "Windows", "Start Menu", "Programs",
+        "Startup", APP_NAME + ".lnk")
+
+
 def get_autostart():
-    import winreg
-    try:
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_READ)
-        try:
-            wert, _ = winreg.QueryValueEx(key, RUN_VALUE)
-            return bool(wert)
-        finally:
-            winreg.CloseKey(key)
-    except Exception:
-        return False
+    return os.path.exists(autostart_lnk())
+
+
+def _lnk_schreiben(pfad, ziel, argumente="", symbol=None):
+    """Eine Verknuepfung anlegen – ueber den Windows Script Host.
+
+    Kein Fremdpaket noetig: WScript.Shell gehoert zu Windows und kann genau
+    das. Ueber comtypes waere es umstaendlicher und braeuchte eine
+    Typbibliothek.
+    """
+    import comtypes.client
+    # `dynamic=True` ist Pflicht: Ohne das kommt ein nacktes IDispatch
+    # zurueck, an dem schon `Save()` scheitert - die Verknuepfung waere
+    # nie entstanden und der Autostart still wirkungslos.
+    shell = comtypes.client.CreateObject("WScript.Shell", dynamic=True)
+    lnk = shell.CreateShortcut(pfad)
+    lnk.TargetPath = ziel
+    lnk.Arguments = argumente
+    lnk.WorkingDirectory = os.path.dirname(ziel)
+    lnk.Description = "Volumix – Lautstärke-Mixer für einzelne Apps"
+    if symbol and os.path.exists(symbol):
+        lnk.IconLocation = symbol
+    lnk.Save()
 
 
 def set_autostart(an):
-    import winreg
-    try:
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE)
-    except FileNotFoundError:
-        key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY)
-    except Exception:
+    r"""Autostart ueber den Startup-Ordner, nicht ueber die Registry.
+
+    Frueher stand hier ein Wert unter HKCU\...\CurrentVersion\Run. Das ist
+    technisch dasselbe, aber es ist auch genau der Weg, auf dem sich
+    Schadsoftware im System verankert - und Defender wertet ihn entsprechend.
+    Zweimal hat er Volumix daraufhin in Quarantaene genommen, samt .exe und
+    Taskleisten-Verknuepfung; beim zweiten Mal stand der Run-Schluessel
+    ausdruecklich in der Fundmeldung.
+
+    Eine Verknuepfung im Autostart-Ordner leistet dasselbe, ist fuer den
+    Nutzer sichtbar und laesst sich dort auch von Hand wieder entfernen.
+    """
+    lnk = autostart_lnk()
+    _run_key_entfernen()          # Altlast, egal in welche Richtung geschaltet
+    if not an:
+        try:
+            os.remove(lnk)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            pass
         return
     try:
-        if an:
-            winreg.SetValueEx(key, RUN_VALUE, 0, winreg.REG_SZ, _startbefehl())
+        os.makedirs(os.path.dirname(lnk), exist_ok=True)
+        fertig = gebaute_app()
+        if fertig:
+            _lnk_schreiben(lnk, fertig, "--tray", fertig)
         else:
+            # Aus dem Quelltext heraus: ueber pythonw, damit kein Fenster
+            # aufgeht.
+            pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+            if not os.path.exists(pyw):
+                pyw = sys.executable
+            skript = os.path.join(app_dir(), "volumix.pyw")
+            _lnk_schreiben(lnk, pyw, '"{}" --tray'.format(skript))
+    except Exception as e:
+        notiz("Autostart konnte nicht gesetzt werden: {}".format(e))
+
+
+def _run_key_entfernen():
+    """Den alten Registry-Eintrag loswerden, falls er noch da ist."""
+    import winreg
+    for name in (RUN_VALUE, OLD_RUN_VALUE):
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0,
+                                 winreg.KEY_SET_VALUE)
             try:
-                winreg.DeleteValue(key, RUN_VALUE)
-            except FileNotFoundError:
-                pass
-    finally:
-        winreg.CloseKey(key)
+                winreg.DeleteValue(key, name)
+                notiz("alter Autostart-Eintrag aus der Registry entfernt")
+            finally:
+                winreg.CloseKey(key)
+        except Exception:
+            pass
 
 
 def autostart_pruefen():
-    """Zeigt der Autostart-Eintrag noch auf etwas Sinnvolles?
+    """Zeigt die Verknuepfung noch auf etwas Sinnvolles?
 
-    Wird er aus dem Quelltext heraus gesetzt (beim Entwickeln), traegt er den
-    Weg ueber Python ein. Sobald die App gebaut ist, soll er auf diese zeigen.
+    Wird sie aus dem Quelltext heraus gesetzt (beim Entwickeln), traegt sie
+    den Weg ueber Python. Sobald die App gebaut ist, soll sie auf diese
+    zeigen. Und wenn die .exe verschwunden ist - etwa weil ein Virenscanner
+    sie geholt hat -, zeigt die Verknuepfung ins Leere und wird erneuert,
+    sobald wieder eine da ist.
     """
-    import winreg
     fertig = gebaute_app()
-    if not fertig:
+    if not fertig or not get_autostart():
         return
     try:
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0,
-                             winreg.KEY_READ)
-        try:
-            wert, _ = winreg.QueryValueEx(key, RUN_VALUE)
-        finally:
-            winreg.CloseKey(key)
+        import comtypes.client
+        shell = comtypes.client.CreateObject("WScript.Shell", dynamic=True)
+        lnk = shell.CreateShortcut(autostart_lnk())
+        ziel = (lnk.TargetPath or "").lower()
     except Exception:
         return
-    if wert and fertig.lower() not in wert.lower():
+    if fertig.lower() != ziel:
         set_autostart(True)
 
 

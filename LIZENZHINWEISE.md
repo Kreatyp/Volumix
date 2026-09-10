@@ -28,12 +28,6 @@ also nicht mitgeliefert, und es gibt nichts zu lizenzieren.
 Auf Windows 10, wo es die Variable-Fassung noch nicht gibt, greift die
 Rückfallkette auf **Segoe UI**.
 
-## Klang
-
-Der Ton am Anschlag (`volumix/toene/anschlag.wav`) ist gerechnet, nicht
-aufgenommen: ein Sinus bei 880 Hz mit exponentiellem Abfall. Es steckt also
-kein fremdes Material darin.
-
 ## Programmsymbole
 
 Die Symbole von Chrome, Discord, Spotify und anderen Programmen holt Volumix

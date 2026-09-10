@@ -13,7 +13,6 @@ TEXTE = {
     # ---- Kopf und Grundgeruest ----
     "untertitel": ("LAUTSTÄRKE-MIXER FÜR EINZELNE APPS",
                    "VOLUME MIXER FOR INDIVIDUAL APPS"),
-    "mixer": ("LAUTSTÄRKE-MIXER", "VOLUME MIXER"),
     "alles": ("ALLES", "EVERYTHING"),
     "einzelne_apps": ("EINZELNE APPS", "INDIVIDUAL APPS"),
     "gesamtlautstaerke": ("Gesamtlautstärke", "Master volume"),
@@ -58,6 +57,9 @@ TEXTE = {
     "tt_modus": ("Hell / Dunkel", "Light / dark"),
     "tt_einstellungen": ("Einstellungen", "Settings"),
     "tt_zurueck": ("Zurück", "Back"),
+    "tt_minimieren": ("Minimieren", "Minimise"),
+    "tt_schliessen": ("Schließen — läuft im Infobereich weiter",
+                      "Close — keeps running in the notification area"),
 
     # ---- Profile ----
     "profil_loeschen": ("Profil löschen", "Delete profile"),
@@ -103,6 +105,22 @@ TEXTE = {
     "dunkel": ("Dunkel", "Dark"),
     "hell": ("Hell", "Light"),
     "farbe": ("FARBE", "COLOUR"),
+    "groesse_app": ("GRÖSSE", "SIZE"),
+    "groesse_hilfe": (
+        "Zieht die ganze Oberfläche größer oder kleiner — Schrift, Regler, "
+        "Abstände, alles im selben Verhältnis.\n\n"
+        "Das ist keine Zoomstufe, die nachträglich vergrößert: Qt rechnet "
+        "damit von vornherein, die Schrift bleibt also gestochen.\n\n"
+        "Der Wert muss feststehen, bevor Qt hochfährt — deshalb greift er "
+        "erst beim nächsten Start.",
+        "Scales the whole interface up or down — text, sliders, spacing, all "
+        "in the same proportion.\n\n"
+        "This is not a zoom applied afterwards: Qt works with it from the "
+        "start, so text stays crisp.\n\n"
+        "The value has to be settled before Qt starts up, so it takes effect "
+        "the next time Volumix runs."),
+    "skala_offen": ("Wirkt beim nächsten Start", "Takes effect on next start"),
+    "jetzt_neu_starten": ("Jetzt neu starten", "Restart now"),
 
     # ---- Einstellungen: Steuerung ----
     "geschwindigkeit": ("Geschwindigkeit", "Speed"),
@@ -172,6 +190,68 @@ TEXTE = {
         "way. The port is reachable from this machine only."),
     "melder_belegt": ("Anschluss belegt — läuft Volumix schon einmal?",
                       "Port in use — is Volumix already running?"),
+
+    # ---- Boxen im Netz ----
+    "boxen": ("Boxen", "Speakers"),
+    "boxen_titel": ("BOXEN IM NETZ", "NETWORK SPEAKERS"),
+    "boxen_nachziehen": ("Lautstärke selbst nachziehen",
+                         "Restore the volume automatically"),
+    "boxen_hilfe": (
+        "Für Lautsprecher, die per Kabel am Rechner hängen und trotzdem im "
+        "Netz stehen — Teufel Raumfeld. Sie starten mit ihrem eigenen Wert "
+        "und merken sich nur, was zuletzt über ihre eigene App lief.\n\n"
+        "Trag die Lautstärke ein und drück Enter: Sie wird sofort gesetzt. "
+        "Ist der Schalter an, wird sie danach von allein wiederhergestellt "
+        "— wenn die Box angeht und wenn du nach längerer Pause an den "
+        "Rechner zurückkommst.\n\n"
+        "Enter setzt immer, auch bei ausgeschaltetem Schalter — und beim "
+        "Anschalten kommt die Lautstärke ebenfalls immer mit, sonst wachte "
+        "die Box auf ihrem eigenen Wert auf.",
+        "For speakers wired to the computer that are on the network anyway "
+        "— Teufel Raumfeld. They start at their own value and only remember "
+        "what last played through their own app.\n\n"
+        "Type the volume and press Enter: it is applied right away. With "
+        "the switch on it is then restored by itself — when the speaker "
+        "comes on, and when you return to the computer after a longer "
+        "break.\n\n"
+        "Enter always applies, even with the switch off — and switching on "
+        "always brings the volume with it, otherwise the speaker would wake "
+        "up at its own value."),
+    "boxen_schalter": ("Boxen an", "Speakers on"),
+    "boxen_mit_pc": ("Mit dem Rechner an- und ausschalten",
+                     "Switch on and off with the computer"),
+    "boxen_pc_hilfe": (
+        "An, sobald du nach längerer Pause wieder an den Rechner kommst — "
+        "und mit dem Anschalten gleich auf die eingetragene Lautstärke, "
+        "denn die Box wacht auf ihrem eigenen Startwert auf.\n\n"
+        "Aus nach 15 Minuten ohne Eingabe, aber nur, wenn dabei eine Minute "
+        "lang kein Ton lief. Sonst gingen die Boxen mitten im Film aus — da "
+        "fasst man eine Viertelstunde lang nichts an.\n\n"
+        "Was du selbst schaltest, bleibt so: Von allein geht es erst wieder "
+        "an, wenn du nach einer Pause zurückkommst.",
+        "On as soon as you come back to the computer after a longer break — "
+        "and straight to the volume you entered, because the speaker wakes "
+        "up at its own starting value.\n\n"
+        "Off after 15 minutes without input, but only if no sound played "
+        "for a minute. Otherwise the speakers would go off in the middle of "
+        "a film — you do not touch anything for a quarter of an hour "
+        "there.\n\n"
+        "What you switch yourself stays that way: it only comes back on by "
+        "itself when you return after a break."),
+    "boxen_laut": ("{wert} % ist ziemlich laut — noch einmal Enter",
+                  "{wert}% is quite loud — press Enter again"),
+    "boxen_suche": ("Suche …", "Searching …"),
+    "boxen_weg": ("Keine Box gefunden", "No speaker found"),
+    "boxen_an": ("Box ist an", "Speaker is on"),
+    "boxen_aus": ("Box ist aus", "Speaker is off"),
+    "tray_boxen": ("Boxen an/aus", "Speakers on/off"),
+    "tt_boxen": ("Boxen an- und ausschalten — die Zahl anklicken und mit "
+                 "Enter bestätigen setzt ihre Lautstärke",
+                 "Switch the speakers on and off — click the number and "
+                 "press Enter to set their volume"),
+    "boxen_gesetzt": ("{name} auf {wert} % gesetzt",
+                      "{name} set to {wert}%"),
+    "boxen_steht": ("{name} steht auf {wert} %", "{name} is at {wert}%"),
     "beim_wechsel": ("BEIM WECHSEL GESAMT ↔ APP",
                      "WHEN SWITCHING MASTER ↔ APP"),
     "wechsel_frage": ("Was mit den Pegeln geschieht",
@@ -181,18 +261,6 @@ TEXTE = {
     "im_fenster": ("IM FENSTER", "IN THE WINDOW"),
     "einblendung": ("EINBLENDUNG", "ON-SCREEN DISPLAY"),
     "system": ("SYSTEM", "SYSTEM"),
-    "ton": ("TON", "SOUND"),
-    "ton_anschlag": ("Ton bei voller Lautstärke",
-                     "Sound at full volume"),
-    "ton_hilfe": (
-        "Ein kurzer Ton, sobald der Regler oben ankommt — damit man auch "
-        "ohne Hinsehen merkt, dass es nicht weiter geht.\n\n"
-        "Er kommt beim Ankommen, nicht beim Weiterdrehen: Wer schon auf "
-        "100 % steht und weiterdreht, hört nichts mehr.",
-        "A short sound the moment the slider reaches the top — so you notice "
-        "it will not go further without having to look.\n\n"
-        "It plays on arrival, not while you keep turning: once you are at "
-        "100 %, turning further stays silent."),
     "wechsel_none": ("Nichts ändern", "Change nothing"),
     "wechsel_carry": ("Pegel mitnehmen", "Carry level over"),
     "wechsel_apps100": ("Apps auf 100 %", "Apps to 100%"),
@@ -212,12 +280,35 @@ TEXTE = {
         "• Apps to 100% – switching to master volume sets every app to 100%."),
 
     # ---- Einstellungen: Anzeige ----
+    "cover_bg": ("Coverbild als Hintergrund", "Cover art as background"),
+    "cover_hilfe": (
+        "Nimmt das Coverbild des laufenden Titels, zeichnet es weich und "
+        "legt es hinter das Fenster — die Farben folgen damit der Musik.\n\n"
+        "Damit alles lesbar bleibt, wird unter jeder Karte verdunkelt und "
+        "unter der Kopfzeile ebenso. Zu sehen ist das Bild dort, wo kein "
+        "Text steht — und es schimmert durch das Glas der Karten.\n\n"
+        "Der Titel kommt von Windows selbst: Alles, was in der Titelanzeige "
+        "der Lautstärketasten erscheint, taugt als Quelle.\n\n"
+        "Kostet fast nichts. Gemessen: einmal je Titel 1 ms fürs "
+        "Weichzeichnen, 5 ms fürs Holen des Bildes — und 0,06 ms je "
+        "gezeichnetem Bild, bei 16,7 ms Spielraum.",
+        "Takes the cover art of the current track, blurs it and puts it "
+        "behind the window — the colours then follow the music.\n\n"
+        "To keep everything readable, the area under each card is darkened, "
+        "and under the header as well. The image shows where no text sits — "
+        "and shimmers through the glass of the cards.\n\n"
+        "The track comes from Windows itself: anything that appears in the "
+        "volume-key track display works as a source.\n\n"
+        "Costs almost nothing. Measured: 1 ms to blur and 5 ms to fetch the "
+        "image, once per track — and 0.06 ms per frame drawn, out of 16.7 ms "
+        "available."),
     "live_pegel": ("Live-Pegel neben den Reglern",
                    "Live meters next to the sliders"),
     "osd_anzeigen": ("Lautstärke-Einblendung anzeigen", "Show volume overlay"),
     "groesse": ("Größe", "Size"),
     "position_waagerecht": ("Position waagerecht", "Position horizontal"),
     "position_senkrecht": ("Position senkrecht", "Position vertical"),
+    "transparenz": ("Transparenz", "Transparency"),
 
     # ---- Dialog „Sichtbare Apps“ ----
     "sichtbare_apps": ("SICHTBARE APPS", "VISIBLE APPS"),

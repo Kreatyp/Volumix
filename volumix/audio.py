@@ -13,7 +13,6 @@ import time
 from comtypes import CoInitialize, CoUninitialize
 from pycaw.pycaw import AudioUtilities, IAudioMeterInformation
 
-from . import klang
 from .config import GAMMA_STANDARD as GAMMA_STANDARD_CFG
 from .config import MASTER_KEY, SYSTEM_KEY
 from .sprache import T
@@ -61,7 +60,6 @@ class AudioEngine:
         self.gamma = self.GAMMA_STANDARD
         self.switch_mode = "none"
         self.meters_an = True
-        self.ton_am_anschlag = True
 
         # Lautstaerke angleichen: welche Apps, was der Nutzer wollte, wie weit
         # gerade gedaempft wird, und die beiden Zeitebenen der Messung
@@ -712,8 +710,6 @@ class AudioEngine:
             self._ziel[key] = ziel
             weg = abs(ziel - self._jetzt.get(key, ziel))
             self._schritt[key] = max(1, int(weg / 5.0 + 0.5))
-        if angekommen and self.ton_am_anschlag:
-            klang.anschlag()
 
     def _fahren(self):
         fertig = []

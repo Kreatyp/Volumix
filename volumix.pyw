@@ -8,7 +8,9 @@ Lautstaerke-Tasten.
 Oberflaeche: PySide6 (Qt). Audio: pycaw. Eingabe: pynput.
 """
 import ctypes
+import os
 import sys
+import time
 from ctypes import wintypes
 
 # --- Nur eine Instanz; zweiter Start holt das vorhandene Fenster nach vorn ---
@@ -29,8 +31,45 @@ _ERROR_ALREADY_EXISTS = 183
 _EVENT_MODIFY_STATE = 0x0002
 _SHOW_EVENT = "Volumix_ShowEvent"
 
-_mutex = _k32.CreateMutexW(None, False, "Volumix_SingleInstance")
-if ctypes.get_last_error() == _ERROR_ALREADY_EXISTS:
+def _sperre_holen():
+    """Die Einzelinstanz-Sperre nehmen – beim Neustart mit Geduld.
+
+    Startet Volumix sich selbst neu (geaenderte Groesse), laeuft die alte
+    Instanz noch, waehrend die neue schon hochfaehrt. Ohne Warten haelt die
+    neue sich fuer die ueberfluessige zweite und beendet sich sofort – aus
+    dem Neustart wuerde ein Beenden.
+
+    Bewusst hier und nicht in der alten Instanz: Die muesste ihre Sperre
+    dafuer vorher loslassen, und ob das in der gepackten App zuverlaessig
+    gelingt, haengt an Dingen, die man nicht in der Hand hat. Warten kann
+    die neue Instanz immer.
+    """
+    frist = 8.0 if "--neustart" in sys.argv else 0.0
+    ende = time.monotonic() + frist
+    while True:
+        griff = _k32.CreateMutexW(None, False, "Volumix_SingleInstance")
+        if ctypes.get_last_error() != _ERROR_ALREADY_EXISTS:
+            return griff
+        _k32.CloseHandle(griff)
+        if time.monotonic() >= ende:
+            return None
+        time.sleep(0.2)
+
+
+_mutex = _sperre_holen()
+
+
+def mutex_freigeben():
+    """Die Sperre loslassen – vor einem selbst ausgeloesten Neustart.
+
+    Ohne das sieht die neue Instanz die alte noch, haelt sich fuer die
+    zweite und beendet sich sofort wieder.
+    """
+    try:
+        _k32.CloseHandle(_mutex)
+    except Exception:
+        pass
+if _mutex is None:
     _h = _k32.OpenEventW(_EVENT_MODIFY_STATE, False, _SHOW_EVENT)
     if _h:
         _k32.SetEvent(_h)
@@ -54,6 +93,20 @@ from PySide6.QtCore import QTimer                          # noqa: E402
 from PySide6.QtWidgets import QApplication                 # noqa: E402
 
 from volumix import config                                 # noqa: E402
+
+# Die Groesse der Oberflaeche muss feststehen, bevor Qt hochfaehrt –
+# danach laesst sie sich nicht mehr aendern. Deshalb hier, vor dem
+# ersten Fenster und vor der QApplication.
+_skala = 100
+try:
+    _skala = int(config.load().get('skala', 100))
+except Exception:
+    pass
+# Immer setzen, auch bei 100 %. Beim selbst ausgeloesten Neustart erbt die
+# neue Instanz die Umgebung der alten – stuende dort noch der alte Faktor und
+# wir setzten ihn nur bei Abweichung, kaeme man von 115 nie wieder auf 100.
+os.environ['QT_SCALE_FACTOR'] = '%.4g' % (max(50, min(200, _skala)) / 100)
+
 from volumix.window import MainWindow                      # noqa: E402
 
 def _fehler_festhalten():

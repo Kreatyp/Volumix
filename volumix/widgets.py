@@ -37,25 +37,51 @@ def bahn_farbe(theme):
     return c
 
 
-def glasgrund_zeichnen(p, theme, rechteck, radius, schimmer=1.0):
-    """Deckender Untergrund fuer Flaechen ausserhalb des Fensters.
+def glasgrund_zeichnen(p, theme, rechteck, radius, schimmer=1.0,
+                       deckkraft=1.0, farbe=None, bild=None, anteil=0.0):
+    """Eigener Untergrund fuer Flaechen ausserhalb des Fensters.
 
     Die Einblendung schwebt ueber dem Desktop. Dort ist eine Milchglas-
     scheibe fast unsichtbar: Sie lebt davon, dass etwas durch sie
     hindurchscheint, und ueber fremdem Bild ist das nichts Bestimmtes.
     Deshalb bringt sie ihren Grund selbst mit – dieselbe dunkle Flaeche mit
-    demselben farbigen Licht wie das Fenster, nur eben deckend.
+    demselben farbigen Licht wie das Fenster.
+
+    `deckkraft` laesst den Schreibtisch ein wenig durchscheinen. Ganz ohne
+    Grund verschwindet die Flaeche, deckend wirkt sie wie aufgeklebt; ein
+    schmaler Rest Durchsicht sagt, dass etwas darueber liegt.
+
+    `farbe` ersetzt den Akzent im Licht. Laeuft im Fenster ein Coverbild,
+    leuchtet dessen Farbe – die Einblendung gehoert zum selben Bild und soll
+    nicht als Einzige im alten Ton stehen bleiben.
+
+    `bild` ist dieses Coverbild selbst, `anteil` wie stark es durchkommt. Eine
+    Farbe allein trifft es nicht: Im Fenster liegt unter jeder Karte das Bild,
+    nicht ein Mittelwert davon. Die Einblendung bringt es deshalb genauso mit
+    – sonst sieht sie nur dann nach demselben Programm aus, wenn man sie
+    durchsichtig genug stellt.
     """
     from PySide6.QtGui import QRadialGradient
     p.setPen(Qt.NoPen)
-    p.setBrush(QColor(theme.bg))
+    # Im Dunkeln der Fenstergrund, im Hellen die Karte: Dort ist der Grund
+    # nicht das, was unter den Flaechen liegt, sondern die Flaeche selbst.
+    # Mit `bg` wurde die Einblendung im hellen Modus ein graues Brett.
+    grund = QColor(theme.card if theme.hell else theme.bg)
+    grund.setAlphaF(max(0.0, min(1.0, deckkraft)))
+    p.setBrush(grund)
     p.drawRoundedRect(rechteck, radius, radius)
 
     pfad = QPainterPath()
     pfad.addRoundedRect(rechteck, radius, radius)
     p.save()
     p.setClipPath(pfad)
-    akzent = QColor(theme.accent)
+    if bild is not None and anteil > 0.0:
+        # Mit der Deckkraft mitgezogen: Wer die Einblendung durchsichtig
+        # stellt, will den Bildschirm dahinter sehen, nicht ein zweites Bild.
+        p.setOpacity(max(0.0, min(1.0, anteil * deckkraft)))
+        p.drawPixmap(rechteck.toRect(), bild, bild.rect())
+        p.setOpacity(1.0)
+    akzent = QColor(farbe or theme.accent)
     g = QRadialGradient(rechteck.left() + rechteck.width() * 0.22,
                         rechteck.top(), rechteck.width() * 0.85)
     innen, aussen = QColor(akzent), QColor(akzent)
@@ -69,32 +95,69 @@ def glasgrund_zeichnen(p, theme, rechteck, radius, schimmer=1.0):
 
 
 def flaeche_zeichnen(p, theme, rechteck, radius, licht=1.0, deckung=1.0):
-    """Milchige Scheibe ueber dem farbigen Grund.
+    """Karte, Leiste, Zeile – im Dunkeln Glas, im Hellen Papier.
 
-    Nach oben etwas dichter als nach unten, dazu eine Lichtkante an der
-    Oberkante, die nach unten auslaeuft – so wie Licht von oben faellt.
-    Ueber die Stilvorlage geht das nicht: Qt zieht einen Rahmen rundherum.
+    Im Dunkeln ist es eine milchige Scheibe ueber dem farbigen Grund: nach
+    oben dichter als nach unten, dazu ein Lichtsaum an der Oberkante, so wie
+    Licht von oben faellt. Der Grund scheint durch, und weil dort farbiges
+    Licht steht, sieht Glas nach Glas aus statt nach Grau.
 
-    Vorher waren das Volltoene mit leichtem Verlauf. Der Unterschied ist,
-    dass jetzt der Grund durchscheint – deshalb steht dort ueberhaupt
-    farbiges Licht, sonst waere Glas nur ein anderes Grau.
+    Im Hellen traegt dieselbe Geste nicht. Weisse Milch auf hellem Grund
+    aendert nichts an der Helligkeit, ein weisser Lichtsaum auf weisser Karte
+    erst recht nicht – uebrig blieb eine Flaeche, die man nur am Farbnebel
+    des Fenstergrundes ueberhaupt fand. Dort ist die Karte deshalb ein
+    deckendes Blatt mit einer feinen Kante: Die Kante macht die Form, nicht
+    die Helligkeit.
+
+    `deckung` bleibt in beiden Faellen der Anteil – die Einblendung nutzt
+    ihn, um durchscheinen zu lassen. Nur die Kante bleibt voll: Sie ist im
+    Hellen das Einzige, was die Flaeche vom Untergrund trennt.
     """
     glas = theme.glas
     dicht = glas["deckung"] * deckung
+    p.setPen(Qt.NoPen)
+    if theme.hell:
+        oben, unten = QColor(theme.card_top), QColor(theme.card_bottom)
+        oben.setAlphaF(max(0.0, min(1.0, dicht)))
+        unten.setAlphaF(max(0.0, min(1.0, dicht)))
+    else:
+        oben, unten = _milch(dicht), _milch(dicht * 0.42)
     g = QLinearGradient(rechteck.left(), rechteck.top(),
                         rechteck.left(), rechteck.bottom())
-    g.setColorAt(0.0, _milch(dicht))
-    g.setColorAt(1.0, _milch(dicht * 0.42))
-    p.setPen(Qt.NoPen)
+    g.setColorAt(0.0, oben)
+    g.setColorAt(1.0, unten)
     p.setBrush(g)
     p.drawRoundedRect(rechteck, radius, radius)
 
+    if theme.hell:
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(QColor(theme.stroke), 1.0))
+        p.drawRoundedRect(rechteck, radius, radius)
+        return
     # `licht` daempft die Kante fuer kleine Flaechen: Der Verlauf laeuft
     # ueber 60 % der Hoehe aus, und auf der flachen Einblendung wird daraus
     # ein weisser Rahmen statt eines Lichtsaums.
-    saum = QLinearGradient(rechteck.left(), rechteck.top(), rechteck.left(),
-                           rechteck.top() + max(14.0, rechteck.height() * 0.6))
-    saum.setColorAt(0.0, _milch(glas["licht"] * licht))
+    lichtkante(p, theme, rechteck, radius, licht)
+
+
+def lichtkante(p, theme, rechteck, radius, staerke=1.0, laenge=None):
+    """Heller Saum an der Oberkante, nach unten auslaufend.
+
+    Die Geste, die eine Flaeche wie Glas aussehen laesst: Licht faellt von
+    oben. Steht hier fuer sich, weil ausser den Karten auch das Fenster
+    selbst sie bekommt – zwei Kopien derselben Zeilen waeren zwei Stellen,
+    an denen man es spaeter auseinanderlaufen laesst.
+
+    `laenge` ist der Weg, auf dem das Licht ausklingt. Ab Werk 60 % der
+    Hoehe; fuer das ganze Fenster zu viel, dort wird ein fester Wert
+    uebergeben.
+    """
+    glas = theme.glas
+    if laenge is None:
+        laenge = max(14.0, rechteck.height() * 0.6)
+    saum = QLinearGradient(rechteck.left(), rechteck.top(),
+                           rechteck.left(), rechteck.top() + laenge)
+    saum.setColorAt(0.0, _milch(glas["licht"] * staerke))
     saum.setColorAt(1.0, _milch(0.0))
     p.setBrush(Qt.NoBrush)
     p.setPen(QPen(QBrush(saum), 1.2))
@@ -124,6 +187,15 @@ class Flaeche(QFrame):
         flaeche = QRectF(0.5, 0.5, self.width() - 1.0, self.height() - 1.0)
         if self.eigener_grund:
             glasgrund_zeichnen(p, self.theme, flaeche, self.radius)
+        # Unter das Glas, nicht darueber: Das Glas ist in Dunkel nur zu 7 %
+        # deckend – ein Coverbild schiene sonst mitten durch die Schrift.
+        dunkeln = getattr(self.theme, "grund_dunkeln", 0.0)
+        if dunkeln > 0.0:
+            grund = QColor(self.theme.bg)
+            grund.setAlphaF(dunkeln)
+            p.setPen(Qt.NoPen)
+            p.setBrush(grund)
+            p.drawRoundedRect(flaeche, self.radius, self.radius)
         flaeche_zeichnen(p, self.theme, flaeche, self.radius)
 
 
@@ -589,6 +661,12 @@ class _ElidedLabel(QLabel):
         self.setToolTip(self._voll if gekuerzt != self._voll else "")
 
 
+# Auswahlbalken am linken Rand einer angehakten Zeile.
+BALKEN_RAND = 5.0       # Abstand zur Zeilenkante – nicht buendig, sonst
+                        # stoesst er gegen deren Rundung
+BALKEN_BREITE = 4.0
+
+
 class MixerRow(QWidget):
     """Eine Zeile im Mixer: Haken, Symbol, Name, Pegel, Regler, Prozent."""
 
@@ -720,13 +798,56 @@ class MixerRow(QWidget):
             grund = None
         p.setPen(Qt.NoPen)
         if grund:
-            p.setBrush(QColor(grund))
-            p.drawRoundedRect(QRectF(0, 0, self.width(), self.height()), 12, 12)
+            # Frueher ein Vollton – die einzige flache Flaeche im ganzen
+            # Fenster, waehrend Karten, Leisten und Einblendung alle einen
+            # Verlauf und eine Lichtkante tragen. Genau daran lag es, dass
+            # die angehakte Zeile wie aufgeklebt wirkte.
+            flaeche = QRectF(0, 0, self.width(), self.height())
+            farbe = QColor(grund)
+            verlauf = QLinearGradient(0, 0, 0, self.height())
+            verlauf.setColorAt(0.0, farbe.lighter(114))
+            verlauf.setColorAt(1.0, farbe.darker(106))
+            p.setBrush(verlauf)
+            p.drawRoundedRect(flaeche, 12, 12)
+            # Schwaecher als auf den Karten: Die Zeile liegt schon auf einer
+            # Scheibe, zwei gleich helle Kanten uebereinander waeren zu viel.
+            lichtkante(p, t,
+                       QRectF(0.5, 0.5, self.width() - 1.0,
+                              self.height() - 1.0),
+                       12, staerke=0.38, laenge=self.height() * 0.8)
+            p.setPen(Qt.NoPen)
         if self._balken > 0.01:
-            hoch = (self.height() - 20) * self._balken
-            p.setBrush(QColor(t.accent))
-            p.drawRoundedRect(
-                QRectF(0, (self.height() - hoch) / 2.0, 3.0, hoch), 1.5, 1.5)
+            # Frueher: 3 px breit, buendig bei x=0. Damit stiess er gegen die
+            # Rundung der Zeile (Radius 12) und sah aus wie abgeschnitten –
+            # und er war die einzige flache Vollfarbe im Fenster, waehrend
+            # alles andere Licht von oben bekommt.
+            #
+            # Jetzt sitzt er im Rand statt auf der Kante, ist eine Spur
+            # breiter (bei 150 % Bildschirmskalierung waren 3 px zu wenig)
+            # und traegt denselben Verlauf wie die Flaechen: oben heller.
+            hoch = (self.height() - 24) * self._balken
+            oben = (self.height() - hoch) / 2.0
+            bahn = QRectF(BALKEN_RAND, oben, BALKEN_BREITE, hoch)
+            # Weicher Schatten darunter: drei Umrisse mit wachsendem Rand
+            # und fallender Deckkraft, leicht nach unten versetzt. Ein
+            # echter Weichzeichner waere fuer vier Pixel Breite
+            # unverhaeltnismaessig – gezeichnet sieht es gleich aus und
+            # kostet drei Rechtecke.
+            for weite, deckung in ((3.0, 0.10), (2.0, 0.13), (1.0, 0.16)):
+                schatten = QColor(0, 0, 0)
+                schatten.setAlphaF(deckung)
+                p.setBrush(schatten)
+                s = bahn.adjusted(-weite, -weite * 0.5,
+                                  weite, weite * 1.5)
+                p.drawRoundedRect(s, s.width() / 2.0, s.width() / 2.0)
+
+            hell = QColor(t.accent).lighter(128)
+            verlauf = QLinearGradient(bahn.left(), bahn.top(),
+                                      bahn.left(), bahn.bottom())
+            verlauf.setColorAt(0.0, hell)
+            verlauf.setColorAt(1.0, QColor(t.accent))
+            p.setBrush(verlauf)
+            p.drawRoundedRect(bahn, BALKEN_BREITE / 2.0, BALKEN_BREITE / 2.0)
 
     def symbol_setzen(self):
         dpr = self.devicePixelRatioF()

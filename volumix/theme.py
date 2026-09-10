@@ -111,22 +111,55 @@ LIGHT = {
 # Helligkeitseindruck staerker als alle Flaechen zusammen.
 GLAS_DUNKEL = {"schimmer": 0.15, "weite": 0.72, "deckung": 0.07,
                "licht": 0.58, "schiene": 0.12}
-# Im Hellen traegt weisse Milch auf hellem Grund nichts – dort ist die
-# Scheibe fast deckend und der Schimmer zurueckhaltender, sonst wird das
-# Fenster bunt statt hell.
-GLAS_HELL = {"schimmer": 0.20, "weite": 0.85, "deckung": 0.82,
-             "licht": 0.95, "schiene": 0.24}
+# Im Hellen traegt weisse Milch auf hellem Grund nichts. Dort ist die Karte
+# deshalb ein deckendes Blatt mit feiner Kante (`deckung` 1,0, `licht` 0 –
+# ein weisser Saum auf weisser Karte ist nichts), und das Licht im Grund ist
+# nur noch ein Hauch: Bei 0,20 auf 0,85 Weite lag ein violett-rosa Nebel
+# ueber dem halben Fenster, durch den jede Flaeche mitgefaerbt wurde. Weit
+# gezogen und schwach bleibt davon eine Tonung, die man erst sucht, wenn man
+# sie sucht.
+GLAS_HELL = {"schimmer": 0.055, "weite": 1.3, "deckung": 1.0,
+             "licht": 0.0, "schiene": 0.16}
 
-# Die Einblendung bekommt dieselben Werte stark gedaempft. Auf ihrer kleinen
-# Flaeche wirkt dieselbe Menge Licht viel kraeftiger als im ganzen Fenster,
-# und sie steht mitten im Bild, waehrend man etwas anderes tut – dort stoert
+# Die Einblendung bekommt dieselben Werte gedaempft. Auf ihrer kleinen
+# Flaeche wirkt dieselbe Menge Licht kraeftiger als im ganzen Fenster, und
+# sie steht mitten im Bild, waehrend man etwas anderes tut – dort stoert
 # Helligkeit mehr, als sie nuetzt.
 #
-# Gemessen als mittlere Helligkeit ihrer Flaeche: L* 13,9 mit den vollen
-# Werten, 6,0 mit diesen. Noch weiter (L* 4,1) verschluckt der Grund den
-# leeren Teil der Reglerbahn – dann sieht man nicht mehr, wo sie aufhoert.
-OSD_SCHIMMER = 0.48        # Anteil am Schimmer des Fensters
-OSD_DECKUNG = 0.36         # Anteil an der Dichte der Scheibe
+# Anders als das Fenster liegt sie ueber fremdem Bild. Sie bringt ihren
+# Grund deshalb selbst mit, laesst ihn aber durchscheinen: Bei der
+# Voreinstellung deckt die fertige Flaeche zu Alpha 189 von 255, und der
+# weisse Text haelt ueber weissem Untergrund 8,3:1. Reines Glas ohne Grund
+# war Alpha 13 und damit unsichtbar, deckend wirkte sie wie aufgeklebt.
+#
+# Der Schimmer traegt hier die Farbe: Im Fenster kommt sie vom Coverbild
+# selbst, ueber dem Schreibtisch gibt es nur dieses eine Licht. Bei 0,48
+# lagen Akzent und Coverfarbe nur 7 Punkte auseinander (kaum zu sehen), bei
+# 0,80 sind es 13.
+OSD_SCHIMMER = 0.80        # Anteil am Schimmer des Fensters
+OSD_DECKUNG = 0.22         # Anteil an der Dichte der Scheibe
+OSD_GRUND_REST = 0.44      # was auch beim vollen Regler stehen bleibt
+# So viel vom Coverbild steht im Fenster unter einer Karte: erst der Schleier
+# ueber dem ganzen Bild (18 %), dann die Verdunklung unter der Karte (78 %) –
+# bleiben 0,82 * 0,22. Die Einblendung ist nichts anderes als eine Karte, die
+# ueber dem Schreibtisch steht, und nimmt denselben Anteil.
+OSD_COVER = 0.18
+
+
+def osd_deckkraft(klar):
+    """Prozent Durchsicht aus den Einstellungen -> Deckkraft des Grundes.
+
+    Ganz durchsichtig gibt es nicht: Ohne eigenen Grund faellt die
+    Einblendung ueber hellem Bild in sich zusammen (gemessen Alpha 13 von
+    255). Der Regler oeffnet ihn deshalb nur bis auf einen Rest.
+
+    Der Rest ist nicht frei gewaehlt: Bei 0,44 misst der Text am Anschlag
+    ueber weissem Untergrund noch 3,15:1 – knapp ueber dem, was fuer grosse
+    fette Schrift reicht. Die Voreinstellung 50 landet damit bei 0,72 und
+    8,3:1.
+    """
+    anteil = max(0, min(100, int(klar))) / 100.0
+    return 1.0 - anteil * (1.0 - OSD_GRUND_REST)
 
 
 def schrift():
@@ -236,6 +269,15 @@ class Theme:
         self.row_sel = mix(self.card, self.accent, 0.11 if not self.hell else 0.09)
         self.row_sel_hover = mix(self.card, self.accent,
                                  0.16 if not self.hell else 0.14)
+        # Warnfarbe, unabhaengig vom gewaehlten Akzent: Sie soll auch dann
+        # auffallen, wenn jemand Bernstein als Akzent eingestellt hat, und
+        # sie kommt aus derselben Palette wie alles andere.
+        self.warnung = "#F59E0B" if not self.hell else "#B45309"
+        # Wie stark unter jeder Karte verdunkelt wird. Null im Normalfall –
+        # der Fenstergrund ist ohnehin dunkel. Liegt ein Coverbild dahinter,
+        # bekommt jede Karte darunter eine eigene dunkle Scheibe, damit der
+        # Text lesbar bleibt, waehrend das Bild ringsum sichtbar ist.
+        self.grund_dunkeln = 0.0
 
     def accent_of(self, key):
         farbe = next((p for p in PALETTE if p[0] == key), PALETTE[0])
@@ -289,12 +331,15 @@ class Theme:
             letter-spacing: 0.6px;
         }}
         #Abdunklung {{ background: rgba(0, 0, 0, 120); }}
+        /* Enger gesperrt als frueher (1.3px): Die Zeile ist lang, und rechts
+           daneben sitzt jetzt die Boxen-Pille. Die Sperrung machte sie rund
+           25 px breiter, ohne dass man sie deshalb besser laese. */
         #Untertitel {{
             color: {t.muted};
             font-family: {SCHRIFT_KLEIN};
             font-size: 11px;
             font-weight: 400;
-            letter-spacing: 1.3px;
+            letter-spacing: 0.6px;
         }}
         #Hinweis {{ color: {t.muted}; font-size: 12px; }}
         #Trennlinie {{ background: {mix(t.card, t.fg, 0.10)}; border: none; }}
@@ -328,6 +373,9 @@ class Theme:
             font-weight: 400;
             color: {mix(t.fg, t.muted, 0.30)};
         }}
+        /* Einmal auf 400 heruntergenommen, um die Auszeichnung zu
+           entschlacken – ohne Fettdruck war die angehakte Zeile aber im
+           Vorbeischauen nicht mehr sofort zu finden. Bleibt fett. */
         #NameGewaehlt {{
             font-size: 14px;
             font-weight: 700;
@@ -351,6 +399,39 @@ class Theme:
         QPushButton:pressed {{ background: {mix(t.card2, t.fg, 0.18)}; }}
         QPushButton#Betont {{ background: {t.accent}; color: #FFFFFF; }}
         QPushButton#Betont:hover {{ background: {t.accent_hover}; }}
+        /* Nebensache: Umriss statt Flaeche. Gefuellt war dieser Knopf der
+           kraeftigste im Fenster – fuer etwas, das man selten braucht, und
+           damit lauter als die Regler, um die es geht. */
+        QPushButton#Leise {{
+            background: transparent;
+            border: 1px solid {t.stroke};
+            color: {t.muted};
+            font-weight: 500;
+        }}
+        QPushButton#Leise:hover {{
+            background: {t.card2};
+            color: {t.fg};
+        }}
+        /* Fensterknoepfe: flacher und kleiner als die runden Knoepfe,
+           damit sie sich nicht vordraengen. Der Schliessen-Knopf wird beim
+           Darueberfahren rot – so wie ueberall unter Windows. */
+/* Rund wie alles andere im Fenster – die runden Knoepfe daneben sind
+           44 px, diese hier 28: dieselbe Form, kleiner, damit sie sich als
+           Fenstersteuerung zurueckhalten. Ein abgerundetes Rechteck war die
+           einzige eckige Form im ganzen Programm und fiel entsprechend auf. */
+        QPushButton#Fensterknopf, QPushButton#Schliessen {{
+            background: transparent;
+            border: none;
+            border-radius: 14px;
+            padding: 0px;
+            min-width: 28px; max-width: 28px;
+            min-height: 28px; max-height: 28px;
+        }}
+        QPushButton#Fensterknopf:hover, QPushButton#Schliessen:hover {{
+            background: {"rgba(255,255,255,0.10)" if not t.hell else t.card2};
+        }}
+        QPushButton#Schliessen:hover {{ background: {t.red}; }}
+
         QPushButton#Rund {{
             background: transparent;
             border-radius: 22px;
@@ -437,6 +518,25 @@ class Theme:
             selection-background-color: {t.accent};
         }}
         QLineEdit:focus {{ border-color: {rgba(t.accent, 0.55)}; }}
+
+        /* Boxen-Pille in der Kopfzeile: Die Zahl ist ein Eingabefeld, soll
+           aber wie Text aussehen. Der Rahmen kommt erst beim Tippen. */
+        QLineEdit#BoxenWert {{
+            background: transparent;
+            border: none;
+            border-radius: 0px;
+            padding: 0px;
+            font-size: 14px;
+            font-weight: 600;
+        }}
+        QLineEdit#BoxenWert:focus {{
+            background: {"rgba(255,255,255,0.10)" if not t.hell else t.senke};
+            border-radius: 5px;
+        }}
+        #BoxenProzent {{ font-size: 11px; }}
+        QPushButton#BoxenKnopf {{
+            background: transparent; border: none; padding: 0px;
+        }}
 
         /* Bildlaufleiste */
         QScrollArea {{ background: transparent; border: none; }}

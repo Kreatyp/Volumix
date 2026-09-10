@@ -8,12 +8,12 @@ Zeichnen selbst.
 from PySide6.QtCore import (QEasingCurve, QPoint, QPropertyAnimation, QRectF,
                             Qt, QTimer, Property)
 from PySide6.QtGui import (QColor, QFont, QGuiApplication, QLinearGradient,
-                           QPainter)
+                           QPainter, QPainterPath)
 from PySide6.QtWidgets import QWidget
 
 from . import icons
-from .theme import glaettung, schrift
-from .theme import OSD_DECKUNG, OSD_SCHIMMER
+from .theme import glaettung, osd_deckkraft, schrift
+from .theme import OSD_COVER, OSD_DECKUNG, OSD_SCHIMMER
 from .widgets import (bahn_farbe, flaeche_zeichnen,
                       glasgrund_zeichnen)
 
@@ -38,6 +38,9 @@ class Osd(QWidget):
         self._x, self._y = 50, 88
         self._versatz = 0.0
         self._akzent = None
+        self._cover = None      # Leuchtfarbe aus dem Coverbild
+        self._coverbild = None  # das Bild selbst, wie im Fenster
+        self._deckkraft = osd_deckkraft(50)
 
         self._weg = QTimer(self)
         self._weg.setSingleShot(True)
@@ -73,9 +76,11 @@ class Osd(QWidget):
 
     gezeigt = Property(float, get_gezeigt, set_gezeigt)
 
-    def einstellen(self, groesse, x, y, theme=None):
+    def einstellen(self, groesse, x, y, theme=None, klar=None):
         if theme is not None:
             self.theme = theme
+        if klar is not None:
+            self._deckkraft = osd_deckkraft(klar)
         self._groesse, self._x, self._y = groesse, x, y
         self._masse()
         if self.isVisible():
@@ -95,7 +100,8 @@ class Osd(QWidget):
         y = bild.y() + int((bild.height() - h) * self._y / 100.0)
         self.move(x, y + int(self._versatz * h * 0.6))
 
-    def zeigen(self, quellen, prozent, text=None, dauer=1100, akzent=None):
+    def zeigen(self, quellen, prozent, text=None, dauer=1100,
+               akzent=None, cover=None, coverbild=None):
         # Erwartet (Schluessel, Pfad, Name). Alles andere wird verworfen statt
         # spaeter beim Zeichnen zu scheitern – ein Fehler im paintEvent reisst
         # sonst das ganze Programm mit.
@@ -111,6 +117,8 @@ class Osd(QWidget):
         self._text = text
         if akzent:
             self._akzent = akzent
+        self._cover = cover
+        self._coverbild = coverbild
         self._masse()
         self._anim.stop()
         self._versatz = 0.0
@@ -154,17 +162,31 @@ class Osd(QWidget):
                        self.height() - 2 * rand)
         radius = 20 * f
 
-        # weicher Schatten
+        # Weicher Schatten, aber nur ausserhalb der Karte. Ohne das
+        # Ausklammern liegt er auch unter ihr – was niemandem auffiel,
+        # solange die Karte fast schwarz und deckend war. Durchsichtig und
+        # hell gestellt wurde daraus ein grauer Fleck mitten im Bild.
+        umriss = QPainterPath()
+        umriss.addRoundedRect(karte, radius, radius)
+        p.save()
+        aussen = QPainterPath()
+        aussen.addRect(QRectF(self.rect()))
+        p.setClipPath(aussen.subtracted(umriss))
+        p.setPen(Qt.NoPen)
         for i in range(int(6 * f), 0, -1):
-            c = QColor(0, 0, 0, int(10 + i * 2))
-            p.setPen(Qt.NoPen)
-            p.setBrush(c)
+            p.setBrush(QColor(0, 0, 0, int(10 + i * 2)))
             p.drawRoundedRect(karte.adjusted(-i, -i + i * 0.4, i, i + i * 0.4),
                               radius + i, radius + i)
+        p.restore()
 
         # Erst der eigene Grund, dann die Scheibe darauf: Ueber dem Desktop
         # hat das Glas sonst nichts, durch das es scheinen koennte.
-        glasgrund_zeichnen(p, t, karte, radius, schimmer=OSD_SCHIMMER)
+        # Der Grund traegt das Coverbild und sein Licht, der Balken bleibt
+        # beim Akzent – genauso wie im Fenster. Ein Regler, der mit jedem
+        # Titel umfaerbt, waere schlecht wiederzufinden.
+        glasgrund_zeichnen(p, t, karte, radius, schimmer=OSD_SCHIMMER,
+                           deckkraft=self._deckkraft, farbe=self._cover,
+                           bild=self._coverbild, anteil=OSD_COVER)
         flaeche_zeichnen(p, t, karte, radius, deckung=OSD_DECKUNG)
 
         dpr = self.devicePixelRatioF()

@@ -25,6 +25,7 @@ config.CONFIG_DIR = _TEST
 config.CONFIG_PATH = os.path.join(_TEST, "config.json")
 
 from volumix import icons                                      # noqa: E402
+import schirm                                                  # noqa: E402
 from volumix.window import MainWindow                          # noqa: E402
 
 fehler = 0
@@ -41,6 +42,7 @@ app = QApplication(sys.argv)
 app.setQuitOnLastWindowClosed(False)
 f = MainWindow()
 f.show()
+schirm.nebenan(f)
 for _ in range(120):
     app.processEvents()
     if f.rows:

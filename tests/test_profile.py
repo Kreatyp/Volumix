@@ -20,10 +20,15 @@ from volumix import config                                     # noqa: E402
 _TEST = os.path.join(_TESTS, "testcfg")
 os.makedirs(_TEST, exist_ok=True)
 config.CONFIG_DIR = _TEST
-config.CONFIG_PATH = os.path.join(_TEST, "config.json")
+# Eigene Datei statt der gemeinsamen: Diese Reihe legt Profile an und
+# loescht sie wieder. Auf der gemeinsamen Ablage hing ihr Ergebnis
+# davon ab, was andere Reihen – und beim Entwickeln auch mal ein
+# Skript nebenher – dort hinterlassen hatten.
+config.CONFIG_PATH = os.path.join(_TEST, "config-profile.json")
 if os.path.exists(config.CONFIG_PATH):
     os.remove(config.CONFIG_PATH)
 
+import schirm                                                  # noqa: E402
 from volumix.window import MainWindow                          # noqa: E402
 
 fehler = 0
@@ -40,6 +45,7 @@ app = QApplication(sys.argv)
 app.setQuitOnLastWindowClosed(False)
 f = MainWindow()
 f.show()
+schirm.nebenan(f)
 for _ in range(160):
     app.processEvents()
     if f.rows:
@@ -51,6 +57,20 @@ def warten(n=15):
     for _ in range(n):
         app.processEvents()
         time.sleep(0.02)
+
+
+def warte_bis(bedingung, frist=3.0):
+    """Auf einen Zustand warten statt auf eine feste Zahl Durchlaeufe.
+
+    Das Namensfeld bekommt die Eingabe erst, wenn Windows das Fenster nach
+    vorn gelassen hat, und wie lange das dauert, steht nicht fest. Mit einer
+    festen Wartezeit fiel diese Reihe etwa in jedem siebten Lauf um.
+    """
+    ende = time.time() + frist
+    while time.time() < ende and not bedingung():
+        app.processEvents()
+        time.sleep(0.02)
+    return bedingung()
 
 
 def nach_vorn():
@@ -211,9 +231,9 @@ pruefe("Farbe steht global, nicht im Profil",
 
 print("\n=== Loeschen ueber den Papierkorb ===")
 feld_oeffnen()
-warten()
 pruefe("Papierkorb da, solange das Feld offen ist",
-       f.btn_prof_weg.isVisible() and f.btn_prof_weg.isEnabled())
+       warte_bis(lambda: f.btn_prof_weg.isVisible()
+                 and f.btn_prof_weg.isEnabled()))
 f.btn_prof_weg.click()
 warten(30)
 pruefe("geloescht", "Zocken" not in f.profiles, str(sorted(f.profiles)))
@@ -221,7 +241,8 @@ pruefe("das verbliebene ist offen", f.cfg["profil"] == erstes, f.cfg["profil"])
 f._profil_loeschen(erstes)
 pruefe("das letzte laesst sich nicht loeschen", len(f.profiles) == 1)
 feld_oeffnen()
-warten()
+# Wie oben: auf den Zustand warten, nicht auf die Uhr.
+warte_bis(lambda: f.btn_prof_weg.isVisible())
 pruefe("Papierkorb auch beim letzten Profil sichtbar",
        f.btn_prof_weg.isVisible())
 pruefe("dort aber ausgegraut", not f.btn_prof_weg.isEnabled())

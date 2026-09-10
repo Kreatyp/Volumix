@@ -24,6 +24,7 @@ config.CONFIG_PATH = os.path.join(_TEST, "config.json")
 
 from volumix.audio import AudioEngine                          # noqa: E402
 from volumix.config import MASTER_KEY                          # noqa: E402
+import schirm                                                  # noqa: E402
 from volumix.window import MainWindow                          # noqa: E402
 
 fehler = 0
@@ -73,6 +74,7 @@ app_qt = QApplication(sys.argv)
 app_qt.setQuitOnLastWindowClosed(False)
 f = MainWindow()
 f.show()
+schirm.nebenan(f)
 for _ in range(80):
     app_qt.processEvents()
     if f.rows:

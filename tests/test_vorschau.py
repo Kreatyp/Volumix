@@ -26,6 +26,7 @@ os.makedirs(_TEST, exist_ok=True)
 config.CONFIG_DIR = _TEST
 config.CONFIG_PATH = os.path.join(_TEST, "config.json")
 
+import schirm                                                  # noqa: E402
 from volumix.window import MainWindow                          # noqa: E402
 
 fehler = []
@@ -52,6 +53,7 @@ app = QApplication(sys.argv)
 app.setQuitOnLastWindowClosed(False)
 f = MainWindow()
 f.show()
+schirm.nebenan(f)
 f._seite(1)
 app.processEvents()
 

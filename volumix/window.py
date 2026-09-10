@@ -2,30 +2,92 @@
 """Hauptfenster: Mixer, Einstellungen, Profile, App-Auswahl."""
 import ctypes
 import functools
+import os
+import sys
 import time
 
-from PySide6.QtCore import (Property, QEasingCurve, QPropertyAnimation, QSize,
-                            Qt, QTimer, Signal)
-from PySide6.QtGui import QAction, QFontMetricsF, QIcon
+from PySide6.QtCore import (Property, QEasingCurve, QPoint, QProcess,
+                            QPropertyAnimation,
+                            QRect, QRectF, QSize, Qt, QTimer,
+                            Signal)
+from PySide6.QtGui import (QAction, QColor, QFontMetricsF, QIcon, QImage,
+                           QIntValidator, QLinearGradient, QPainter, QPen,
+                           QPixmap, QRadialGradient)
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QDialog, QFrame,
+                               QGraphicsBlurEffect, QGraphicsPixmapItem,
+                               QGraphicsScene,
                                QGraphicsOpacityEffect, QHBoxLayout, QLabel,
                                QLineEdit, QMenu, QPushButton, QScrollArea,
                                QSizePolicy, QSystemTrayIcon,
                                QVBoxLayout, QWidget)
 
-from . import config, icons, klang
+from . import config, icons
 from .audio import AudioEngine, huebscher_name
+from .boxen import Boxen
 from .config import MASTER_KEY
+from .energie import Energiewacht
 from .hooks import InputHook
 from .melder import Melder
 from .osd import Osd
 from . import sprache
 from .sprache import SPRACHEN, T
 from .theme import PALETTE, Theme, basis_schrift, glaettung, mix
-from .widgets import (FadeScroll, Flaeche, MixerRow, Slider,
-                      ToggleSwitch)
+from .titel import Titelwacht
+from .widgets import (FadeScroll, Flaeche, MixerRow, Slider, ToggleSwitch,
+                      flaeche_zeichnen, lichtkante)
 
 SWITCH_MODES = ["none", "carry", "apps100"]     # Beschriftung via T()
+
+# Angebotene Groessen der Oberflaeche in Prozent. Bewusst Stufen und
+# kein Regler: Der Wert wirkt erst beim naechsten Start, ein Regler
+# verspraeche also eine Feinfuehligkeit, die man gar nicht sieht.
+SKALEN = [80, 90, 100, 115, 130]
+
+# Coverbild als Fenstergrund. Die Zahlen sind der ganze Entwurf:
+#
+#   ARBEIT    Kantenlaenge, auf der weichgezeichnet wird.
+#   RADIUS    Staerke des Weichzeichners. Zugleich die Breite des Randes, der
+#             hinterher abgeschnitten wird: Der Filter zieht an der Bildkante
+#             Farbe aus dem Nichts und hinterliesse sonst einen hellen Saum.
+#   GROESSE   Groesse des fertigen Bildes. Grosszuegig, damit es bei jeder
+#             Fensterhoehe passt – gezeichnet wird es skaliert (0,06 ms).
+#   SCHLEIER  Wie stark der Fenstergrund ueber dem Bild liegt.
+#   KARTEN    Wie stark zusaetzlich unter jeder Karte verdunkelt wird. Die
+#             Scheiben sind im Dunkeln nur zu 7 % deckend – ohne das schiene
+#             das Bild mitten durch die Schrift.
+#   KOPF      Hoehe des dunklen Verlaufs unter der Kopfzeile. Oben liegt
+#             Text ohne Karte auf dem Grund – im Mixer der Titel, in den
+#             Einstellungen Titel und Reiter.
+#   DECKUNG   Wie dicht dieser Verlauf oben ist. Gemessen ueber einem hellen
+#             Cover: ohne ihn stand der inaktive Reiter bei 1,4:1 und war
+#             nicht zu lesen; bei 0,86 sind es 4,6 bis 5,7:1, je nachdem
+#             wie hell das Bild gerade unter ihm liegt.
+#   AUSLAUF   Wie weit er unter dem Kopf ausklingt. Eine Kachel mit Kante
+#             saehe auf dem Bild aufgeklebt aus – der Verlauf endet, ohne
+#             dass man merkt wo.
+#   RAND      Wie stark das Bild zu den Ecken hin ausblendet.
+#
+# Der erste Anlauf rechnete das Cover auf 26 Pixel herunter und zog es wieder
+# hoch. Das kostete zwar nur 1 ms, sah aber genau danach aus: kantige Bloecke
+# und die Rauten der Interpolation. Ein echter Gaussfilter kostet gemessen
+# 4,6 ms – einmal je Titel, also ohne Belang.
+COVER_ARBEIT = 320
+COVER_RADIUS = 40
+COVER_GROESSE = QSize(640, 960)
+COVER_SCHLEIER = 0.18
+COVER_KARTEN = 0.78
+COVER_KOPF = 118
+COVER_KOPF_DECKUNG = 0.86
+COVER_AUSLAUF = 36
+COVER_RAND = 0.35
+
+# Ecke und Lichtsaum des Fensters. Der Radius ist der, mit dem Windows 11
+# rahmenlose Fenster rundet – waere er anders, saesse der Saum neben der
+# Kante. Die Laenge ist ein fester Wert statt eines Anteils der Hoehe:
+# Auf einer Karte laeuft das Licht ueber 60 % aus, beim ganzen Fenster
+# waere das ein heller Streifen bis zur Mitte.
+FENSTER_RADIUS = 8.0
+FENSTER_SAUM = 140.0
 
 
 def durchsichtig(widget, name):
@@ -52,6 +114,270 @@ def rundknopf(symbol, theme, tooltip=""):
     b.setIconSize(QSize(RUND_SYMBOL, RUND_SYMBOL))
     b._symbol = symbol
     return b
+
+
+class _Ziehleiste(QWidget):
+    """Der Streifen ganz oben – dort, wo sonst die Titelleiste waere.
+
+    Er ist unsichtbar und traegt nur die beiden Fensterknoepfe. Gezogen wird
+    ueber `startSystemMove`: Damit bleibt das Anschnappen an den
+    Bildschirmrand erhalten, das ein selbst nachgebautes Verschieben nicht
+    haette.
+    """
+
+    HOEHE = 28
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        durchsichtig(self, "Ziehleiste")
+        self.setFixedHeight(self.HOEHE)
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            fenster = self.window().windowHandle()
+            if fenster is not None:
+                fenster.startSystemMove()
+                e.accept()
+                return
+        super().mousePressEvent(e)
+
+
+class _Zahlfeld(QLineEdit):
+    """Zahl in der Boxen-Pille: beim Hineinklicken steht sie markiert da.
+
+    Man will sie ersetzen, nicht hinter ihr weitertippen. Escape verwirft,
+    und ein Klick daneben ebenso – wer die Zahl wirklich will, drueckt
+    Enter. Stillschweigend zu uebernehmen waere hier heikler als anderswo:
+    Am Ende der Kette haengt ein Verstaerker.
+    """
+
+    abgebrochen = Signal()
+
+    def __init__(self, *args, **kw):
+        super().__init__(*args, **kw)
+        self._frisch = False
+
+    def focusInEvent(self, e):
+        super().focusInEvent(e)
+        self.selectAll()
+        self._frisch = True
+
+    def focusOutEvent(self, e):
+        super().focusOutEvent(e)
+        self.abgebrochen.emit()
+
+    def mousePressEvent(self, e):
+        # `focusInEvent` markiert zwar, aber Qts eigenes `mousePressEvent`
+        # setzt danach die Schreibmarke an die Klickstelle und hebt die
+        # Markierung wieder auf.
+        #
+        # Nicht ueber `hasFocus()` erkennbar, ob der Klick der erste war:
+        # Qt vergibt den Fokus schon, bevor es dieses Ereignis zustellt –
+        # hier ist er also immer schon da. Deshalb setzt `focusInEvent` eine
+        # Marke, die dieser Klick verbraucht. Das Markieren selbst muss in
+        # die naechste Runde der Ereignisschleife, sonst kommt Qt abermals
+        # hinterher.
+        frisch = self._frisch
+        self._frisch = False
+        super().mousePressEvent(e)
+        if frisch:
+            QTimer.singleShot(0, self.selectAll)
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_Escape:
+            self.clearFocus()          # loest ueber focusOutEvent aus
+            return
+        super().keyPressEvent(e)
+
+
+class _BoxenPille(QWidget):
+    """An/Aus und Lautstaerke der Netzwerk-Boxen, oben in der Kopfzeile.
+
+    Der Zustand haengt an zwei Merkmalen, nicht an einem: Farbe *und*
+    Symbol. Aus ist der Lautsprecher durchgestrichen und alles gedaempft,
+    an traegt die Pille den Akzentton und der Lautsprecher seine Wellen.
+    Wer Farben schlecht auseinanderhaelt, sieht es trotzdem.
+
+    Die Zahl ist ein Eingabefeld, sieht aber nicht danach aus – ein Kasten
+    mit Rahmen neben der Wortmarke waere ein Fremdkoerper. Hineinklicken,
+    tippen, Enter.
+    """
+
+    geschaltet = Signal(bool)
+    wert_gesetzt = Signal(int)
+    warnt = Signal(int)          # laute Zahl, das zweite Enter fehlt noch
+
+    HOEHE = 34
+    # Ab hier wird nachgefragt statt gesetzt. Ein Vertipper – 90 statt 9 –
+    # kostet an einer Anlage mehr als eine Rueckfrage.
+    LAUT = 70
+
+    def __init__(self, theme, parent=None):
+        super().__init__(parent)
+        self.theme = theme
+        self._an = False
+        self._wert = 65
+        self._gewarnt = None      # Zahl, fuer die schon gewarnt wurde
+        self.setFixedHeight(self.HOEHE)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(8, 0, 10, 0)
+        # Abstaende von Hand statt einem Wert fuer alles: Das Prozentzeichen
+        # gehoert an die Zahl, der Lautsprecher ist ein eigenes Ding.
+        lay.setSpacing(0)
+
+        self.knopf = QPushButton()
+        self.knopf.setObjectName("BoxenKnopf")
+        self.knopf.setCursor(Qt.PointingHandCursor)
+        self.knopf.setFixedSize(24, 24)
+        self.knopf.setIconSize(QSize(20, 20))
+        self.knopf.setFlat(True)
+        self.knopf.clicked.connect(lambda: self.geschaltet.emit(not self._an))
+        lay.addWidget(self.knopf)
+        lay.addSpacing(7)
+
+        self.feld = _Zahlfeld(str(self._wert))
+        self.feld.setObjectName("BoxenWert")
+        self.feld.setValidator(QIntValidator(0, 100, self))
+        self.feld.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.feld.setMaxLength(3)
+        self.feld.setFixedWidth(25)
+        self.feld.setCursor(Qt.IBeamCursor)
+        self.feld.returnPressed.connect(self._uebernehmen)
+        self.feld.abgebrochen.connect(self._abbrechen)
+        lay.addWidget(self.feld)
+        lay.addSpacing(2)
+
+        self.prozent = QLabel("%")
+        self.prozent.setObjectName("BoxenProzent")
+        # Mittig, nicht unten: `setAlignment` richtet den Text *im Label*
+        # aus, und das Label ist so hoch wie die ganze Pille – unten heisst
+        # dann wirklich ganz unten. Mittig liegen die Grundlinien von Zahl
+        # (14 px) und Zeichen (11 px) rechnerisch 0,75 px auseinander, und
+        # das sieht man nicht.
+        self.prozent.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        lay.addWidget(self.prozent)
+        self._zeichnen()
+
+    def mousePressEvent(self, e):
+        """Die ganze rechte Hälfte gehoert der Zahl.
+
+        Das Feld selbst ist 25 px breit. Wer knapp danebentrifft – auf das
+        Prozentzeichen oder den Rand – haette sonst nichts erwischt oder,
+        schlimmer, den Lautsprecher links davon. Geschaltet wird nur ueber
+        den Knopf, und der ist ein eigenes Widget.
+        """
+        if e.position().x() > self.knopf.geometry().right():
+            self.feld.setFocus()
+            self.feld.selectAll()
+            e.accept()
+            return
+        super().mousePressEvent(e)
+
+    # ---- Aussenseite -----------------------------------------------------
+    def setzen(self, an, wert=None):
+        """Zustand von der Box uebernehmen, ohne etwas auszuloesen."""
+        self._an = bool(an)
+        if wert is not None:
+            self._wert = int(wert)
+            if not self.feld.hasFocus():
+                self.feld.setText(str(self._wert))
+        self._zeichnen()
+
+    def ist_an(self):
+        return self._an
+
+    def theme_wechseln(self, theme):
+        self.theme = theme
+        self._zeichnen()
+
+    # ---- Innenleben ------------------------------------------------------
+    def _uebernehmen(self):
+        text = self.feld.text().strip()
+        wert = int(text) if text.isdigit() else self._wert
+        wert = max(0, min(100, wert))
+        if wert >= self.LAUT and self._gewarnt != wert:
+            # Erst faerben und nachfragen, das zweite Enter setzt. Die
+            # Eingabe bleibt im Feld – wer es sich anders ueberlegt, tippt
+            # weiter oder klickt daneben.
+            self._gewarnt = wert
+            self.feld.setText(str(wert))
+            self.feld.selectAll()
+            self._zeichnen()
+            self.warnt.emit(wert)
+            return
+        self._gewarnt = None
+        self._wert = wert
+        self.feld.setText(str(wert))
+        self.feld.clearFocus()
+        self._zeichnen()
+        self.wert_gesetzt.emit(self._wert)
+
+    def _abbrechen(self):
+        """Escape oder ein Klick daneben: zurueck auf den gesetzten Wert."""
+        self._gewarnt = None
+        self.feld.setText(str(self._wert))
+        self._zeichnen()
+
+    def _zeichnen(self):
+        t = self.theme
+        if self._gewarnt is not None:
+            # Auch der Lautsprecher: Ein violettes Symbol in einer
+            # bernsteinfarbenen Pille sieht aus wie ein Versehen. Ob die Box
+            # an ist, steht weiterhin am Kreuz, nicht an der Farbe.
+            farbe = t.warnung
+        else:
+            farbe = t.accent if self._an else t.muted
+        # Beim Ausschalten steht der Lautsprecher auf null und bekommt das
+        # Kreuz – dieselbe Sprache wie die Stummschaltung im Mixer.
+        self.knopf.setIcon(icons.speaker_pixmap(
+            20, 0.0 if not self._an else max(0.05, self._wert / 100.0),
+            farbe, self.devicePixelRatioF(), stumm=not self._an))
+        self.knopf.setIconSize(QSize(20, 20))
+        if self._gewarnt is not None:
+            schrift = zeichen = t.warnung
+            # Die Zahl steht markiert da, damit man sie sofort ueberschreiben
+            # kann – dann liegt aber die Auswahlfarbe darueber und von der
+            # Warnfarbe bliebe nichts zu sehen. Also faerbt sich auch sie.
+            auswahl = "selection-background-color: {}; selection-color: {};".format(
+                t.warnung, t.card)
+        else:
+            schrift = t.fg if self._an else t.muted
+            zeichen = t.muted
+            auswahl = ""
+        self.feld.setStyleSheet(
+            "#BoxenWert {{ color: {}; {} }}".format(schrift, auswahl))
+        self.prozent.setStyleSheet(
+            "#BoxenProzent {{ color: {}; }}".format(zeichen))
+        self.update()
+
+    def paintEvent(self, e):
+        t = self.theme
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        rund = self.height() / 2.0
+        flaeche = QRectF(0.5, 0.5, self.width() - 1.0, self.height() - 1.0)
+        # Der Akzentton liegt ueber der Glasflaeche, nicht statt ihrer – so
+        # ist die Pille im hellen wie im dunklen Modus aus demselben Stoff
+        # wie die Karten darunter.
+        flaeche_zeichnen(p, t, flaeche, rund)
+        warnt = self._gewarnt is not None
+        if self._an or warnt:
+            ton = QColor(t.warnung if warnt else t.accent)
+            p.setPen(Qt.NoPen)
+            p.setBrush(ton)
+            p.setOpacity(0.15)
+            p.drawRoundedRect(flaeche, rund, rund)
+            p.setOpacity(1.0)
+            # Ring nur im Warnzustand. Im Ruhezustand sagte er dasselbe wie
+            # der Lautsprecher daneben – zwei Ansagen fuer eine Sache, und
+            # die Pille war damit das lauteste Ding im Fenster, obwohl man
+            # sie am seltensten braucht.
+            if warnt:
+                p.setBrush(Qt.NoBrush)
+                stift = QPen(ton)
+                stift.setWidthF(1.6)
+                p.setPen(stift)
+                p.drawRoundedRect(flaeche, rund, rund)
 
 
 class _Profilname(QLineEdit):
@@ -309,7 +635,10 @@ class MainWindow(QWidget):
     # Reihenfolge der Reiter in den Einstellungen. Wer sie umstellt, aendert
     # nur diese Zeile – angesprochen werden die Bereiche ueber ihren Namen,
     # nicht ueber ihre Stelle.
-    BEREICHE = ("allgemein", "steuerung", "anzeige")
+    BEREICHE = ("allgemein", "steuerung", "anzeige", "boxen")
+
+    # Breite des Saums am unteren Rand, an dem die Hoehe gezogen wird.
+    SAUM = 7
 
     apps_bereit = Signal(list)
     volume_bereit = Signal(str, int)
@@ -317,6 +646,8 @@ class MainWindow(QWidget):
     scroll_bereit = Signal(float)
     mute_bereit = Signal()
     rad_gesehen = Signal()
+    box_status = Signal(str, str, int)
+    titel_bereit = Signal(object, object, object)
 
     def __init__(self):
         super().__init__()
@@ -352,6 +683,11 @@ class MainWindow(QWidget):
         self.setObjectName("Fenster")
         self.setAutoFillBackground(False)
         self.setWindowTitle("Volumix")
+        # Ohne Rahmen: Die Titelleiste von Windows liesse sich zwar einfaerben,
+        # blieb aber ein Balken ueber dem Fenster. Verschieben, Anschnappen,
+        # Groessenaendern und der Schlagschatten kommen weiter vom System –
+        # siehe `_fensterrahmen_setzen` und `_Ziehleiste`.
+        self.setWindowFlag(Qt.FramelessWindowHint, True)
         self.setWindowIcon(QIcon(icons.app_logo(64, self.theme.accent)))
         self._wunsch_hoehe = self.cfg.get("window_h", 720)
         self._erwartet = None
@@ -359,10 +695,11 @@ class MainWindow(QWidget):
         self.setMinimumWidth(560)
         self.setMaximumWidth(560)
         self.setMinimumHeight(360)
+        self.setMouseTracking(True)
 
         self.osd = Osd(self.theme)
         self.osd.einstellen(self.cfg["osd_size"], self.cfg["osd_x"],
-                            self.cfg["osd_y"])
+                            self.cfg["osd_y"], klar=self.cfg["osd_klar"])
 
         self.melder = Melder()
         if self.cfg.get("melder") and not self.melder.starten():
@@ -373,6 +710,43 @@ class MainWindow(QWidget):
             config.notiz("Weitergabe an Spiele konnte nicht starten – "
                          "Anschluss belegt")
 
+        # Coverbild des laufenden Titels als Fenstergrund
+        self._cover_pix = None
+        self._cover_alt = None
+        self._cover_mix = 1.0
+        self._cover_farbe = None      # Leuchtfarbe aus dem Cover
+        self._symbol_dichte = 0.0     # Dichte, in der die Symbole liegen
+        self._schirm_verbunden = False
+        self._cover_anim = QPropertyAnimation(self, b"coverblende", self)
+        self._cover_anim.setDuration(700)
+        self._cover_anim.setEasingCurve(QEasingCurve.InOutCubic)
+        # Erst wenn die Ueberblendung steht, hat die Oberkante ihre endgueltige
+        # Farbe – vorher abgegriffen faerbte sich die Leiste auf den halben Weg.
+        self._cover_anim.finished.connect(self._titelleiste_faerben)
+        self.titelwacht = Titelwacht(
+            on_titel=lambda t, i, c: self.titel_bereit.emit(t, i, c))
+
+        self.boxen = Boxen(
+            on_status=lambda s, n, w: self.box_status.emit(s, n, w))
+        self.boxen.ziel = int(self.cfg.get("boxen_ziel", 65))
+        self.boxen.aktiv = bool(self.cfg.get("boxen", False))
+        self.boxen.schalten = bool(self.cfg.get("boxen_schalten", False))
+        self.boxen.host = self.cfg.get("boxen_host", "") or ""
+        self._boxen_gesucht = False   # einmal je Sitzung reicht
+        # Zuletzt gemeldeter Zustand der Box. Gebraucht, weil sich die
+        # Oberflaeche neu aufbauen kann (Sprache, Profil) – die neuen
+        # Schalter wuessten sonst nichts und stuenden auf „aus“.
+        self._boxen_an_zuletzt = False
+        # Mit welcher Groesse dieser Lauf hochgefahren ist. Aendert man
+        # sie, klafft eine Luecke bis zum Neustart – und genau die zeigt
+        # die Oberflaeche dann an.
+        self._skala_start = int(self.cfg.get("skala", 100))
+        # Wann zuletzt von Hand geschaltet wurde. Meldungen aus dem
+        # Arbeitsthread sind unterwegs, wenn der Klick passiert – eine, die
+        # kurz vorher abgeschickt wurde, kaeme danach an und liesse die
+        # Anzeige zurueckspringen.
+        self._boxen_klick = 0.0
+
         self.engine = AudioEngine(
             on_apps=lambda items: self.apps_bereit.emit(items),
             on_volume=lambda k, p: self.volume_bereit.emit(k, p),
@@ -380,7 +754,6 @@ class MainWindow(QWidget):
         self.engine.targets = set(self.targets)
         self.engine.switch_mode = self.cfg["switch_mode"]
         self.engine.meters_an = self.cfg["meters"]
-        self.engine.ton_am_anschlag = self.cfg["ton_anschlag"]
         self.engine.angleichen = set(self.angleichen)
         self._tempo_uebernehmen()
 
@@ -390,6 +763,8 @@ class MainWindow(QWidget):
         self.scroll_bereit.connect(self._scroll)
         self.mute_bereit.connect(self._mute_umschalten)
         self.rad_gesehen.connect(self._rad_melden)
+        self.box_status.connect(self._box_status)
+        self.titel_bereit.connect(self._titel_uebernehmen)
 
         self.hook = InputHook(
             on_scroll=lambda r: self.scroll_bereit.emit(r),
@@ -405,6 +780,23 @@ class MainWindow(QWidget):
         self._vorlage_anwenden()
         self.engine.start()
         self.hook.start()
+        # Auch wenn beide Schalter aus sind: Ist eine Adresse gemerkt, soll
+        # die Kopfzeile den Zustand der Box zeigen und schalten koennen.
+        if self.cfg.get("cover_bg"):
+            self.theme.grund_dunkeln = COVER_KARTEN
+            self.titelwacht.start()
+
+        if self.boxen.aktiv or self.boxen.schalten or self.boxen.host:
+            self.boxen.start()
+
+        # Schlafen und Aufwachen des Rechners. Ohne das griffe das
+        # Ausschalten nur ueber den Leerlauf – wer den Rechner von Hand
+        # schlafen legt, ist bis zur letzten Sekunde davor aktiv gewesen.
+        self.energie = Energiewacht(on_schlafen=self._rechner_schlaeft,
+                                    on_wecken=self._rechner_wacht)
+        app = QApplication.instance()
+        if app is not None:
+            app.installNativeEventFilter(self.energie)
         self._tray()
 
         self._takt = QTimer(self)
@@ -417,11 +809,35 @@ class MainWindow(QWidget):
         self._hilfe_knoepfe = []      # beim Neuaufbau wieder von vorn
         self._flachknoepfe = []
         aussen = QVBoxLayout(self)
-        aussen.setContentsMargins(18, 16, 18, 14)
+        # Oben knapp: Ueber der Wortmarke lagen mit dem Fensterstreifen 46 px,
+        # darunter 10 – das sah aus, als haenge der Kopf in der Luft.
+        aussen.setContentsMargins(18, 2, 18, 14)
         aussen.setSpacing(10)
 
+        # Ganz oben der Streifen mit den Fensterknoepfen. Er liegt ausserhalb
+        # der umschaltbaren Seiten – sonst waeren die Knoepfe in den
+        # Einstellungen weg, denn dort wird die Kopfzeile ausgeblendet.
+        self.fensterleiste = _Ziehleiste()
+        fl = QHBoxLayout(self.fensterleiste)
+        fl.setContentsMargins(0, 0, 0, 0)
+        fl.setSpacing(2)
+        fl.addStretch(1)
+        self.btn_min = self._fensterknopf("minimieren", T("tt_minimieren"))
+        self.btn_min.clicked.connect(self.showMinimized)
+        self.btn_zu = self._fensterknopf("schliessen", T("tt_schliessen"))
+        self.btn_zu.setObjectName("Schliessen")
+        self.btn_zu.clicked.connect(self.close)
+        fl.addWidget(self.btn_min)
+        fl.addWidget(self.btn_zu)
+        aussen.addWidget(self.fensterleiste)
+        aussen.setStretch(0, 0)
+        # Der Streifen sitzt direkt auf der Kopfzeile; der uebliche Abstand
+        # von 10 px gehoert zwischen die Karten, nicht hierhin.
+        aussen.insertSpacing(1, -8)
+
         # Kopfzeile – in den Einstellungen ausgeblendet, dort gibt es eine
-        # eigene mit Zurueck-Pfeil; die Knoepfe waeren doppelt.
+        # eigene mit Zurueck-Pfeil; die Knoepfe waeren doppelt. Die
+        # Fensterknoepfe stehen darueber und bleiben auf beiden Seiten.
         self.kopfzeile = QWidget()
         kopf = QHBoxLayout(self.kopfzeile)
         kopf.setContentsMargins(0, 0, 0, 0)
@@ -438,6 +854,20 @@ class MainWindow(QWidget):
         spalte.addWidget(titel)
         spalte.addWidget(unter)
         kopf.addLayout(spalte, 1)
+        # Die Boxen sind das, was man im Vorbeigehen schaltet – deshalb hier
+        # oben und nicht drei Klicks tief in den Einstellungen. Sichtbar
+        # wird die Pille erst, wenn ueberhaupt eine Box im Netz steht.
+        self.boxen_pille = _BoxenPille(self.theme)
+        self.boxen_pille.setToolTip(T("tt_boxen"))
+        self.boxen_pille.geschaltet.connect(self._boxen_an_aus)
+        self.boxen_pille.wert_gesetzt.connect(self._boxen_ziel_setzen)
+        self.boxen_pille.warnt.connect(
+            lambda wert: self._melden(T("boxen_laut").format(wert=wert), 3000))
+        self.boxen_pille.setVisible(bool(self.cfg.get("boxen_host")))
+        self.boxen_pille.setzen(self._boxen_an_zuletzt,
+                                int(self.cfg.get("boxen_ziel", 65)))
+        kopf.addWidget(self.boxen_pille)
+
         self.btn_modus = rundknopf("moon", self.theme, T("tt_modus"))
         self.btn_modus.clicked.connect(self._modus_wechseln)
         self.btn_einst = rundknopf("gear", self.theme, T("tt_einstellungen"))
@@ -465,17 +895,40 @@ class MainWindow(QWidget):
         self.status.setObjectName("Hinweis")
         ll.addWidget(self.status, 1)
         self.btn_apps = QPushButton(T("apps_waehlen"))
+        self.btn_apps.setObjectName("Leise")
         self.btn_apps.setCursor(Qt.PointingHandCursor)
         self.btn_apps.clicked.connect(self._apps_dialog)
         ll.addWidget(self.btn_apps)
         aussen.addWidget(self.leiste)
 
+    def _fensterknopf(self, symbol, tooltip):
+        b = QPushButton()
+        b.setObjectName("Fensterknopf")
+        b.setCursor(Qt.PointingHandCursor)
+        b.setToolTip(tooltip)
+        b.setIcon(icons.pixmap(symbol, 14, self.theme.muted,
+                               self.devicePixelRatioF()))
+        b.setIconSize(QSize(14, 14))
+        b._symbol = symbol
+        b._sinn = 14
+        self._flachknoepfe.append(b)
+        return b
+
     def _mixer_bauen(self):
+        """Die Mixerkarte.
+
+        Profilleiste und Mixer waren einmal eine gemeinsame Karte – als
+        Versuch, eine Kante zu sparen. Zwei Kacheln lesen sich besser: Das
+        Profil ist eine eigene Sache und sieht jetzt auch danach aus.
+
+        Ohne Ueberschrift geblieben ist die Karte trotzdem. LAUTSTAERKE-MIXER
+        stand woertlich zwei Zeilen darueber im Untertitel des Fensters.
+        """
         seite = QWidget()
         lay = QVBoxLayout(seite)
         lay.setContentsMargins(0, 0, 0, 0)
 
-        self.karte = Karte(self.theme, T("mixer"))
+        self.karte = Karte(self.theme)
         lay.addWidget(self.karte, 1)
 
         # Suchfeld – erscheint erst ab genug Apps
@@ -573,7 +1026,8 @@ class MainWindow(QWidget):
 
         bauer = {"steuerung": self._bereich_steuerung,
                  "anzeige": self._bereich_anzeige,
-                 "allgemein": self._bereich_allgemein}
+                 "allgemein": self._bereich_allgemein,
+                 "boxen": self._bereich_boxen}
         self._bereiche = [bauer[n]() for n in self.BEREICHE]
         for w in self._bereiche:
             ilay.addWidget(w)
@@ -658,6 +1112,9 @@ class MainWindow(QWidget):
         k = Karte(self.theme, T("im_fenster"))
         self._schalter_zeile(
             k, T("live_pegel"), self.cfg["meters"], self._meter_setzen)
+        self._schalter_zeile(
+            k, T("cover_bg"), self.cfg.get("cover_bg", False),
+            self._cover_setzen, hilfe=T("cover_hilfe"))
 
         o = Karte(self.theme, T("einblendung"))
         self._schalter_zeile(
@@ -682,14 +1139,17 @@ class MainWindow(QWidget):
         tlay.addLayout(self._regler_zeile(
             T("position_senkrecht"), self.cfg["osd_y"], 0, 100, self._osd_y,
             self.osd_y_wert, rastpunkte=(50,)))
+        # Wie viel vom Bild dahinter durchscheint. Ganz durchsichtig gibt es
+        # nicht – die Einblendung braucht ihren eigenen Grund, sonst
+        # verschwindet sie ueber hellem Bild.
+        self.osd_klar_wert = QLabel("{} %".format(self.cfg["osd_klar"]))
+        tlay.addLayout(self._regler_zeile(
+            T("transparenz"), self.cfg["osd_klar"], 0, 100, self._osd_klar,
+            self.osd_klar_wert, rastpunkte=(50,)))
         self.osd_teile.setEnabled(self.cfg["osd_enabled"])
         o.lay.addWidget(self.osd_teile)
 
-        t = Karte(self.theme, T("ton"))
-        self._schalter_zeile(
-            t, T("ton_anschlag"), self.cfg["ton_anschlag"],
-            self._ton_setzen, hilfe=T("ton_hilfe"))
-        return self._bereich(k, o, t)
+        return self._bereich(k, o)
 
     def _bereich_allgemein(self):
         # Das Aussehen stand frueher in einem eigenen Reiter. Fuer zwei Zeilen
@@ -719,6 +1179,35 @@ class MainWindow(QWidget):
             r.addStretch(1)
             d.lay.addLayout(r)
 
+        titel = QLabel(T("groesse_app"))
+        titel.setObjectName("Ueberschrift")
+        kopf = QHBoxLayout()
+        kopf.setSpacing(4)
+        kopf.addWidget(titel)
+        kopf.addWidget(self._fragezeichen(T("groesse_hilfe")))
+        kopf.addStretch(1)
+        d.lay.addSpacing(8)
+        d.lay.addLayout(kopf)
+        self.skala_gruppe = self._chipreihe(
+            d, [(s, "{} %".format(s)) for s in SKALEN],
+            int(self.cfg.get("skala", 100)), self._skala_setzen)
+        self.skala_hinweis = QWidget()
+        durchsichtig(self.skala_hinweis, "SkalaHinweis")
+        sh = QHBoxLayout(self.skala_hinweis)
+        sh.setContentsMargins(0, 6, 0, 0)
+        sh.setSpacing(10)
+        marke = QLabel(T("skala_offen"))
+        marke.setObjectName("Hinweis")
+        sh.addWidget(marke)
+        sh.addStretch(1)
+        neu = QPushButton(T("jetzt_neu_starten"))
+        neu.setCursor(Qt.PointingHandCursor)
+        neu.clicked.connect(self._neu_starten)
+        sh.addWidget(neu)
+        d.lay.addWidget(self.skala_hinweis)
+        self.skala_hinweis.setVisible(
+            int(self.cfg.get("skala", 100)) != self._skala_start)
+
         k = Karte(self.theme, T("sprache_abschnitt"))
         self.sprach_gruppe = self._chipreihe(
             k, SPRACHEN, self.cfg["sprache"], self._sprache_setzen)
@@ -730,7 +1219,342 @@ class MainWindow(QWidget):
         self.sw_melder = self._schalter_zeile(
             s, T("melder"), self.cfg.get("melder", False),
             self._melder_setzen, hilfe=T("melder_hilfe"))
+
         return self._bereich(d, k, s)
+
+    def _bereich_boxen(self):
+        return self._bereich(self._karte_boxen())
+
+    def _karte_boxen(self):
+        """Lautsprecher im Netz – an/aus, Zielwert, Selbsttaetigkeit."""
+        b = Karte(self.theme, T("boxen_titel"),
+                  zusatz=self._fragezeichen(T("boxen_hilfe")))
+        # Ganz oben der Schalter, der die Boxen wirklich schaltet: Das ist
+        # das, wofuer man die Karte im Vorbeigehen aufmacht.
+        self.sw_boxen_an = self._schalter_zeile(
+            b, T("boxen_schalter"), self._boxen_an_zuletzt, self._boxen_an_aus)
+        self.sw_boxen = self._schalter_zeile(
+            b, T("boxen_nachziehen"), self.cfg.get("boxen", False),
+            self._boxen_setzen)
+        self.sw_boxen_pc = self._schalter_zeile(
+            b, T("boxen_mit_pc"), self.cfg.get("boxen_schalten", False),
+            self._boxen_schalten_setzen, hilfe=T("boxen_pc_hilfe"))
+        # Kein Zahlenfeld mehr: Die Lautstaerke steht in der Kopfzeile, dort
+        # ist sie jederzeit sichtbar und anklickbar. Zweimal dasselbe an zwei
+        # Stellen heisst nur, dass man beide gleich halten muss.
+        self.boxen_status = QLabel("")
+        self.boxen_status.setObjectName("Hinweis")
+        b.lay.addWidget(self.boxen_status)
+        return b
+
+    def _rechner_schlaeft(self):
+        """Windows meldet Einschlafen. Ab hier bleiben nur Millisekunden."""
+        geschafft = self.boxen.schlafen()
+        # Ins Protokoll, weil man es sonst nicht nachvollziehen kann: Beim
+        # Einschlafen sieht niemand zu, und danach ist der Bildschirm aus.
+        config.notiz("Rechner schlaeft – Boxen {}".format(
+            "ausgeschaltet" if geschafft else "nicht erreicht"))
+        if geschafft:
+            self.boxen_pille.setzen(False)
+
+    def _rechner_wacht(self):
+        config.notiz("Rechner wach – Boxen werden geprueft")
+        self.boxen.start()
+        self.boxen.aufwachen()
+
+    def _boxen_an_aus(self, an):
+        """Schaltet die Boxen wirklich – aus der Kopfzeile, den Einstellungen
+        oder dem Infobereich. Alle drei zeigen danach dasselbe."""
+        self._boxen_klick = time.time()
+        self.boxen.start()
+        if an:
+            self.boxen.an_schalten()
+        else:
+            self.boxen.aus_schalten()
+        self.boxen_pille.setzen(an)
+        if hasattr(self, "sw_boxen_an"):
+            self.sw_boxen_an.setChecked(an)
+            self.boxen_status.setText(T("boxen_suche"))
+        if hasattr(self, "a_boxen"):
+            self.a_boxen.setChecked(an)
+
+    def _boxen_schalten_setzen(self, an):
+        self.cfg["boxen_schalten"] = bool(an)
+        self.boxen.schalten = bool(an)
+        if an:
+            self.boxen.start()
+        self._speichern()
+
+    def _boxen_setzen(self, an):
+        self.cfg["boxen"] = bool(an)
+        self.boxen.aktiv = bool(an)
+        if an:
+            self.boxen.start()
+            self.boxen.jetzt_setzen()
+            self.boxen_status.setText(T("boxen_suche"))
+        else:
+            self.boxen_status.setText("")
+        self._speichern()
+
+    def _boxen_ziel_setzen(self, wert):
+        """Zahl uebernehmen und sofort an die Boxen schicken.
+
+        Geschickt wird auch bei ausgeschalteten Schaltern – sonst muesste man
+        einen umlegen, nur um einmal eine Zahl zu senden. Die Schalter
+        entscheiden allein darueber, was spaeter von selbst geschieht.
+        """
+        wert = max(0, min(100, int(wert)))
+        self.boxen.ziel = wert
+        self.cfg["boxen_ziel"] = wert
+        self.boxen_pille.setzen(self.boxen_pille.ist_an(), wert)
+        self._speichern()
+        self.boxen.start()
+        self.boxen.jetzt_setzen()
+        if hasattr(self, "boxen_status"):
+            self.boxen_status.setText(T("boxen_suche"))
+
+    # ---- Coverbild als Grund --------------------------------------------
+    def get_coverblende(self):
+        return self._cover_mix
+
+    def set_coverblende(self, wert):
+        self._cover_mix = wert
+        self.update()
+
+    coverblende = Property(float, get_coverblende, set_coverblende)
+
+    def _cover_bauen(self, daten):
+        """Aus den Bilddaten den unscharfen Grund rechnen – einmal je Titel.
+
+        Gerechnet wird mit Qts eigenem Weichzeichner auf einer mittelgrossen
+        Flaeche, mit einem Rand von der Breite des Radius, der hinterher
+        abgeschnitten wird. Ohne diesen Rand zieht der Filter an den
+        Bildkanten Farbe aus dem Nichts und hinterlaesst einen hellen Saum.
+
+        Das Seitenverhaeltnis wird bewusst verworfen: Ein quadratisches Cover
+        auf Fensterform gezogen verzerrt, aber nach dem Weichzeichnen ist
+        davon nichts mehr zu sehen, und so bleibt kein Rand ungefuellt.
+        """
+        bild = QImage()
+        if not daten or not bild.loadFromData(daten):
+            return None, None
+        rand = COVER_RADIUS
+        voll = COVER_ARBEIT + 2 * rand
+        klein = bild.scaled(voll, voll, Qt.IgnoreAspectRatio,
+                            Qt.SmoothTransformation)
+        szene = QGraphicsScene()
+        stueck = QGraphicsPixmapItem(QPixmap.fromImage(klein))
+        effekt = QGraphicsBlurEffect()
+        effekt.setBlurRadius(COVER_RADIUS)
+        effekt.setBlurHints(QGraphicsBlurEffect.QualityHint)
+        stueck.setGraphicsEffect(effekt)
+        szene.addItem(stueck)
+        flaeche = QImage(voll, voll, QImage.Format_ARGB32_Premultiplied)
+        flaeche.fill(Qt.transparent)
+        maler = QPainter(flaeche)
+        maler.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        szene.render(maler, QRectF(0, 0, voll, voll), QRectF(0, 0, voll, voll))
+        maler.end()
+        fertig = flaeche.copy(rand, rand, COVER_ARBEIT, COVER_ARBEIT)
+        return (QPixmap.fromImage(fertig.scaled(COVER_GROESSE,
+                                                Qt.IgnoreAspectRatio,
+                                                Qt.SmoothTransformation)),
+                self._cover_farbe_finden(bild))
+
+    def _cover_farbe_finden(self, bild):
+        """Die Farbe, in der der Fenstergrund leuchten soll.
+
+        Der Mittelwert allein wird bei bunten Bildern grau – deshalb wird die
+        Saettigung anschliessend auf einen Mindestwert gehoben. Es geht nicht
+        um Farbtreue, sondern um Licht in der richtigen Richtung.
+        """
+        raster = bild.scaled(16, 16, Qt.IgnoreAspectRatio,
+                             Qt.SmoothTransformation)
+        r = g = b = 0
+        for y in range(16):
+            for x in range(16):
+                f = QColor(raster.pixel(x, y))
+                r += f.red()
+                g += f.green()
+                b += f.blue()
+        mittel = QColor(r // 256, g // 256, b // 256)
+        # Nach oben *und* unten begrenzt: Ein flaues Cover soll trotzdem
+        # leuchten, ein knallbuntes das Fenster aber nicht einfaerben. Der
+        # Farbton bleibt unangetastet – nur er soll vom Titel kommen.
+        return QColor.fromHsv(max(0, mittel.hue()),
+                              min(170, max(90, mittel.saturation())),
+                              min(205, max(140, mittel.value())))
+
+    def _titel_uebernehmen(self, titel, interpret, daten):
+        if not self.cfg.get("cover_bg"):
+            return
+        neu, farbe = self._cover_bauen(daten)
+        if neu is None and self._cover_pix is None:
+            return
+        self._cover_alt = self._cover_pix
+        self._cover_pix = neu
+        self._cover_farbe = farbe
+        self._cover_anim.stop()
+        self._cover_anim.setStartValue(0.0)
+        self._cover_anim.setEndValue(1.0)
+        self._cover_anim.start()
+
+    def _cover_zeichnen(self, p):
+        """Bild, Schleier, Kopfverlauf – in dieser Reihenfolge.
+
+        Der Schleier liegt ueber dem ganzen Bild und macht es dunkel genug
+        fuers Glas darueber. Die Kopfzeile bekommt zusaetzlich einen eigenen
+        Verlauf: Sie ist die einzige Stelle, an der Text ohne Karte auf dem
+        Grund steht.
+        """
+        ziel = self.rect()
+        if self._cover_alt is not None and self._cover_mix < 1.0:
+            p.setOpacity(1.0 - self._cover_mix)
+            p.drawPixmap(ziel, self._cover_alt)
+        if self._cover_pix is not None:
+            p.setOpacity(self._cover_mix)
+            p.drawPixmap(ziel, self._cover_pix)
+        p.setOpacity(1.0)
+
+        schleier = QColor(self.theme.bg)
+        schleier.setAlphaF(COVER_SCHLEIER)
+        p.fillRect(ziel, schleier)
+
+        # Zu den Ecken hin ausblenden, damit das Bild nicht an der
+        # Fensterkante abgeschnitten wirkt, sondern im Grund verschwindet.
+        ecken = QRadialGradient(self.width() * 0.5, self.height() * 0.45,
+                                max(self.width(), self.height()) * 0.72)
+        klar, dicht = QColor(self.theme.bg), QColor(self.theme.bg)
+        klar.setAlphaF(0.0)
+        dicht.setAlphaF(COVER_RAND)
+        ecken.setColorAt(0.35, klar)
+        ecken.setColorAt(1.0, dicht)
+        p.fillRect(ziel, ecken)
+
+        voll, ende = self._kopf_schatten()
+        if ende:
+            verlauf = QLinearGradient(0, 0, 0, ende)
+            oben, unten = QColor(self.theme.bg), QColor(self.theme.bg)
+            oben.setAlphaF(COVER_KOPF_DECKUNG)
+            unten.setAlphaF(0.0)
+            verlauf.setColorAt(0.0, oben)
+            if voll > 0:
+                verlauf.setColorAt(min(0.95, voll / float(ende)), oben)
+            verlauf.setColorAt(1.0, unten)
+            p.fillRect(0, 0, self.width(), ende, verlauf)
+
+    def _kopf_schatten(self):
+        """Bis wohin der Grund oben abgedunkelt wird: (voll, Ende).
+
+        Im Mixer traegt der Kopf nur den Titel, dort genuegt ein Verlauf von
+        der Oberkante weg. In den Einstellungen stehen darunter noch die
+        Reiter – und gerade die inaktiven sind gedaempft geschrieben und
+        verschwinden ueber einem hellen Cover. Bis zu ihrer Unterkante bleibt
+        die Abdunklung deshalb voll und klingt erst darunter aus.
+        """
+        if not self.kopfzeile.isHidden():
+            return 0, COVER_KOPF
+        reiter = getattr(self, "reiter", None)
+        if reiter is not None and self.einst_seite.isVisible():
+            unten = reiter.mapTo(self, QPoint(0, reiter.height())).y()
+            return unten, unten + COVER_AUSLAUF
+        return 0, 0
+
+    def _cover_setzen(self, an):
+        self.cfg["cover_bg"] = bool(an)
+        self.theme.grund_dunkeln = COVER_KARTEN if an else 0.0
+        if an:
+            self.titelwacht.neu_melden()
+            self.titelwacht.start()
+        else:
+            self.titelwacht.stop()
+            self._cover_pix = None
+            self._cover_alt = None
+            # Ohne Bild auch kein Licht daraus: sonst leuchtet das
+            # Fenster noch im Farbton des letzten Titels weiter.
+            self._cover_farbe = None
+        self._speichern()
+        self._alles_neu_zeichnen()
+        QTimer.singleShot(0, self._titelleiste_faerben)
+
+    def _alles_neu_zeichnen(self):
+        """Die Flaechen zeichnen sich selbst – sie muessen es erfahren."""
+        self.update()
+        for flaeche in self.findChildren(Flaeche):
+            flaeche.update()
+
+    def _box_status(self, schluessel, name, wert):
+        # Kommt aus dem Arbeitsthread ueber ein Signal herein. Waehrend eines
+        # Neuaufbaus (Sprachwechsel) gibt es die Beschriftungen kurz nicht.
+        ist_an = schluessel in ("an", "gesetzt", "steht")
+        if schluessel != "weg":
+            # Erst jetzt steht fest, dass ueberhaupt etwas im Netz ist.
+            self.boxen_pille.setVisible(True)
+        # Eine Meldung, die vor dem letzten Klick abgeschickt wurde, weiss
+        # noch nichts davon. Sie darf die Anzeige nicht zurueckdrehen.
+        veraltet = (schluessel in ("an", "aus")
+                    and time.time() - self._boxen_klick < 2.5)
+        if schluessel != "suche" and not veraltet:
+            self._boxen_an_zuletzt = ist_an
+            self.boxen_pille.setzen(ist_an)
+        if not hasattr(self, "boxen_status"):
+            return
+        if schluessel in ("gesetzt", "steht"):
+            self.boxen_status.setText(
+                T("boxen_" + schluessel).format(name=name, wert=wert))
+        else:
+            self.boxen_status.setText(T("boxen_" + schluessel))
+        # Den An/Aus-Schalter nachziehen, ohne ihn dabei ausloesen zu lassen –
+        # sonst schickte jede Meldung von der Box gleich wieder einen Befehl
+        # zurueck an sie.
+        if schluessel != "suche" and not veraltet:
+            self.sw_boxen_an.setChecked(ist_an)
+            if hasattr(self, "a_boxen"):
+                self.a_boxen.setChecked(ist_an)
+        # Die gefundene Adresse merken, damit der naechste Start nicht wieder
+        # das ganze Netz absucht.
+        if self.boxen.host and self.cfg.get("boxen_host") != self.boxen.host:
+            self.cfg["boxen_host"] = self.boxen.host
+            self._speichern()
+
+    def _skala_setzen(self, wert):
+        self.cfg["skala"] = int(wert)
+        self._speichern()
+        # Nur zeigen, wenn wirklich etwas offen ist – zurueck auf den Wert,
+        # mit dem gestartet wurde, heisst kein Neustart noetig.
+        self.skala_hinweis.setVisible(int(wert) != self._skala_start)
+        QTimer.singleShot(0, functools.partial(self._einst_hoehe, True))
+
+    def _neu_starten(self):
+        """Volumix beenden und sofort wieder starten.
+
+        Die Einzelinstanz-Sperre muss vorher fallen, sonst haelt sich die
+        neue Instanz fuer die zweite und beendet sich gleich wieder. Sie
+        liegt im Startpunkt, nicht hier – deshalb der Umweg ueber `__main__`.
+        """
+        import __main__
+        freigeben = getattr(__main__, "mutex_freigeben", None)
+        if freigeben is not None:
+            freigeben()
+        # `--neustart` sagt der neuen Instanz, dass sie auf die Sperre
+        # warten soll, statt sich fuer die ueberfluessige zweite zu halten.
+        # Kein `--tray`: Der Knopf wurde im offenen Fenster gedrueckt, also
+        # gehoert das Fenster danach wieder auf den Bildschirm.
+        if getattr(sys, "frozen", False):
+            programm, args = sys.executable, ["--neustart"]
+        else:
+            fertig = config.gebaute_app()
+            if fertig:
+                programm, args = fertig, ["--neustart"]
+            else:
+                pyw = os.path.join(os.path.dirname(sys.executable),
+                                   "pythonw.exe")
+                programm = pyw if os.path.exists(pyw) else sys.executable
+                args = [os.path.join(config.app_dir(), "volumix.pyw"),
+                        "--neustart"]
+        config.notiz("Neustart wegen geaenderter Groesse")
+        QProcess.startDetached(programm, args)
+        self._beenden()
 
     def _melder_setzen(self, an):
         self.cfg["melder"] = bool(an)
@@ -751,6 +1575,19 @@ class MainWindow(QWidget):
 
     def _bereich_zeigen(self, nr):
         self._einst_bereich = nr
+        # Wer den Steuerungsbereich aufmacht, hat es womoeglich auf die Boxen
+        # abgesehen – dann einmal nachsehen, ob eine im Netz steht. Sonst
+        # bliebe die Pille in der Kopfzeile unsichtbar, bis jemand zufaellig
+        # einen Schalter anfasst. Von allein passiert das nie: Ein Rechner
+        # ohne solche Boxen soll nicht im Hintergrund das Netz absuchen.
+        if self.BEREICHE[nr] == "boxen":
+            self.boxen.wieder_melden()
+        if (self.BEREICHE[nr] == "boxen" and not self.boxen.host
+                and not self._boxen_gesucht):
+            self._boxen_gesucht = True
+            self.boxen.start()
+            self.boxen.neu_suchen()
+            self.boxen_status.setText(T("boxen_suche"))
         for i, w in enumerate(self._bereiche):
             w.setVisible(i == nr)
         self._einblenden(self._bereiche[nr], 150)
@@ -813,17 +1650,16 @@ class MainWindow(QWidget):
         return b
 
     # ---- Aussehen --------------------------------------------------------
-    def _vorlage_anwenden(self):
-        # Auf die Anwendung, nicht aufs Fenster: Erklaerblasen sind eigene
-        # Fenster und wuerden ein Widget-Stylesheet gar nicht sehen.
-        app = QApplication.instance()
-        if app is not None:
-            app.setFont(basis_schrift())
-            app.setStyleSheet(self.theme.qss())
-            self._kanten_weich_machen()
-        else:
-            self.setStyleSheet(self.theme.qss())
+    def _symbole_setzen(self):
+        """Alle gezeichneten Symbole in der Dichte dieses Bildschirms.
+
+        Beim Bauen haengt das Fenster an keinem: Dort steht ersatzweise die
+        Dichte des primaeren Bildschirms. Wer zwei mit unterschiedlicher
+        Skalierung hat, sieht den Unterschied – deshalb einmal nach dem
+        Anzeigen und danach bei jedem Umzug.
+        """
         dpr = self.devicePixelRatioF()
+        self._symbol_dichte = dpr
         self.logo.setPixmap(icons.app_logo(40, self.theme.accent, dpr))
         self.setWindowIcon(QIcon(icons.app_logo(64, self.theme.accent, dpr)))
         for b in (self.btn_modus, self.btn_einst,
@@ -838,9 +1674,36 @@ class MainWindow(QWidget):
             b.setIconSize(QSize(sinn, sinn))
         for b in getattr(self, "_hilfe_knoepfe", []):
             b.setIcon(icons.pixmap("help", 16, self.theme.muted, dpr))
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        griff = self.windowHandle()
+        if griff is not None and not self._schirm_verbunden:
+            griff.screenChanged.connect(lambda _: self._symbole_setzen())
+            self._schirm_verbunden = True
+        if abs(self.devicePixelRatioF() - self._symbol_dichte) > 0.01:
+            self._symbole_setzen()
+
+    def _vorlage_anwenden(self):
+        # Auf die Anwendung, nicht aufs Fenster: Erklaerblasen sind eigene
+        # Fenster und wuerden ein Widget-Stylesheet gar nicht sehen.
+        app = QApplication.instance()
+        if app is not None:
+            app.setFont(basis_schrift())
+            app.setStyleSheet(self.theme.qss())
+            self._kanten_weich_machen()
+        else:
+            self.setStyleSheet(self.theme.qss())
+        # `Theme.set` baut die Farbwerte neu auf – die Verdunkelung unter den
+        # Karten haengt aber am Coverbild, nicht am Farbschema.
+        self.theme.grund_dunkeln = (COVER_KARTEN
+                                    if self.cfg.get("cover_bg") else 0.0)
+        self._symbole_setzen()
         for punkt in getattr(self, "farbknoepfe", {}).values():
             punkt.theme = self.theme
             punkt.update()
+        if getattr(self, "boxen_pille", None) is not None:
+            self.boxen_pille.theme_wechseln(self.theme)
         # Die Flaechen zeichnen sich selbst und wissen von einem Farbwechsel
         # sonst nichts – ohne das bleiben Karten und Leisten stehen, wie sie
         # waren, waehrend alles darauf schon die neue Farbe hat.
@@ -851,7 +1714,8 @@ class MainWindow(QWidget):
             row.theme_wechseln(self.theme)
         self.fade.theme = self.theme
         self.osd.einstellen(self.cfg["osd_size"], self.cfg["osd_x"],
-                            self.cfg["osd_y"], self.theme)
+                            self.cfg["osd_y"], self.theme,
+                            klar=self.cfg["osd_klar"])
         if getattr(self, "tray", None):
             self.tray.setIcon(QIcon(icons.app_logo(64, self.theme.accent)))
         self._titelleiste_faerben()
@@ -869,32 +1733,41 @@ class MainWindow(QWidget):
         self.setFont(glaettung(self.font()))
 
     def _titelleiste_faerben(self):
-        """Titelleiste und Fensterrahmen in die App-Farbe bringen.
+        """Runde Ecken, Schlagschatten, kein Rahmen.
 
-        Windows 11 laesst das ueber DWM zu – so muss die Leiste nicht
-        nachgebaut werden und Verschieben, Minimieren und Schliessen
-        verhalten sich weiter wie gewohnt.
+        Das Fenster hat keine Titelleiste mehr. Was Windows sonst darum
+        herum zeichnet, bleibt trotzdem erhalten – man muss es nur einzeln
+        bestellen:
+
+        * `DWMWA_WINDOW_CORNER_PREFERENCE` rundet die Ecken so wie bei jedem
+          anderen Fenster unter Windows 11.
+        * `DwmExtendFrameIntoClientArea` mit einem Pixel Rand bringt den
+          Schlagschatten zurueck – und mit ihm das Anschnappen an die
+          Bildschirmraender.
+        * `DWMWA_BORDER_COLOR` auf `DWMWA_COLOR_NONE` nimmt den hellen
+          Strich, den Windows sonst um das Fenster legt.
         """
         try:
             dwm = ctypes.windll.dwmapi
-            hwnd = int(self.winId())
-
-            def colorref(hexfarbe):
-                c = hexfarbe.lstrip("#")
-                r, g, b = (int(c[i:i + 2], 16) for i in (0, 2, 4))
-                return ctypes.c_int(b << 16 | g << 8 | r)   # 0x00BBGGRR
+            hwnd = ctypes.c_void_p(int(self.winId()))
 
             dunkel = ctypes.c_int(0 if self.theme.hell else 1)
             for attr in (20, 19):                    # heller/dunkler Modus
-                dwm.DwmSetWindowAttribute(ctypes.c_void_p(hwnd), attr,
-                                          ctypes.byref(dunkel),
+                dwm.DwmSetWindowAttribute(hwnd, attr, ctypes.byref(dunkel),
                                           ctypes.sizeof(dunkel))
-            for attr, wert in ((35, colorref(self.theme.bg)),      # Leiste
-                               (36, colorref(self.theme.fg)),      # Schrift
-                               (34, colorref(self.theme.bg))):     # Rahmen
-                dwm.DwmSetWindowAttribute(ctypes.c_void_p(hwnd), attr,
-                                          ctypes.byref(wert),
-                                          ctypes.sizeof(wert))
+            ecken = ctypes.c_int(2)                  # DWMWCP_ROUND
+            dwm.DwmSetWindowAttribute(hwnd, 33, ctypes.byref(ecken),
+                                      ctypes.sizeof(ecken))
+            keine = ctypes.c_uint(0xFFFFFFFE)        # DWMWA_COLOR_NONE
+            dwm.DwmSetWindowAttribute(hwnd, 34, ctypes.byref(keine),
+                                      ctypes.sizeof(keine))
+
+            class MARGINS(ctypes.Structure):
+                _fields_ = [("links", ctypes.c_int), ("rechts", ctypes.c_int),
+                            ("oben", ctypes.c_int), ("unten", ctypes.c_int)]
+
+            dwm.DwmExtendFrameIntoClientArea(hwnd,
+                                             ctypes.byref(MARGINS(1, 1, 1, 1)))
         except Exception:
             pass
 
@@ -1248,7 +2121,8 @@ class MainWindow(QWidget):
         if not werte:
             return
         schnitt = int(round(sum(werte) / len(werte)))
-        self.osd.zeigen(quellen, schnitt, akzent=self.theme.accent)
+        self.osd.zeigen(quellen, schnitt, akzent=self.theme.accent,
+                        cover=self._cover_farbe, coverbild=self._cover_pix)
         self._nach_aussen_melden(quellen, schnitt)
 
     def _symbol_png(self, key, exe, name, groesse=32):
@@ -1347,10 +2221,34 @@ class MainWindow(QWidget):
         Die meisten Flaechen nehmen keine Eingabe an, deshalb behielte das
         Namensfeld sie sonst und man muesste eigens Enter druecken.
         """
+        # Unterster Saum: Hoehe aendern. Den Rahmen dafuer gibt es nicht
+        # mehr, also uebernimmt das Fenster es selbst – ueber die
+        # System-Groessenaenderung, damit sich der Zeiger richtig verhaelt.
+        if e.position().y() >= self.height() - self.SAUM:
+            fenster = self.windowHandle()
+            if fenster is not None:
+                fenster.startSystemResize(Qt.BottomEdge)
+                e.accept()
+                return
         feld = getattr(self, "profil_name", None)
         if feld is not None and feld.hasFocus():
             feld.clearFocus()
+        # Dasselbe fuer die Zahl in der Boxen-Pille: Ein Klick daneben soll
+        # die angefangene Eingabe verwerfen, nicht offen stehen lassen.
+        pille = getattr(self, "boxen_pille", None)
+        if pille is not None and pille.feld.hasFocus():
+            pille.feld.clearFocus()
         super().mousePressEvent(e)
+
+    def mouseMoveEvent(self, e):
+        """Zeiger am unteren Saum: zeigen, dass hier gezogen werden kann."""
+        unten = e.position().y() >= self.height() - self.SAUM
+        self.setCursor(Qt.SizeVerCursor if unten else Qt.ArrowCursor)
+        super().mouseMoveEvent(e)
+
+    def leaveEvent(self, e):
+        self.setCursor(Qt.ArrowCursor)
+        super().leaveEvent(e)
 
     def paintEvent(self, e):
         """Der Fenstergrund: dunkel, mit drei weichen Lichtern darin.
@@ -1377,17 +2275,29 @@ class MainWindow(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
         p.fillRect(self.rect(), QColor(self.theme.bg))
+        if self._cover_pix is not None or self._cover_alt is not None:
+            self._cover_zeichnen(p)
         breite, hoehe = self.width(), self.height()
-        akzent = QColor(self.theme.accent)
+        # Liegt ein Coverbild dahinter, leuchtet der Grund in dessen Farbe
+        # statt im Akzent: Sonst stehen zwei Farbwelten uebereinander und das
+        # Bild wirkt aufgeklebt. Regler und Haken behalten den Akzent – die
+        # Bedienelemente sollen nicht mit jedem Titel umfaerben.
+        akzent = QColor(self._cover_farbe or self.theme.accent)
         ton = akzent.hue()
         schritt = -50 if (ton < 60 or ton > 300) else 50
         zweit = QColor.fromHsv((ton + schritt) % 360, akzent.saturation(),
                                akzent.value())
         p.setPen(Qt.NoPen)
-        for farbe, (mx, my), weit, anteil in (
-                (akzent, (0.16, 0.0), glas["weite"], 1.0),
-                (zweit, (0.95, 0.40), glas["weite"] * 0.9, 0.8),
-                (akzent, (0.45, 1.03), glas["weite"] * 1.1, 0.5)):
+        # Im Hellen nur ein Licht statt dreier: Zwei Farbtoene nebeneinander
+        # ergeben auf hellem Grund keinen Verlauf, sondern einen Nebel, der
+        # von violett nach rosa dreht – und jede weisse Karte davor sah aus,
+        # als laege sie im falschen Licht.
+        lichter = ((akzent, (0.30, -0.10), glas["weite"], 1.0),)
+        if not self.theme.hell:
+            lichter = ((akzent, (0.16, 0.0), glas["weite"], 1.0),
+                       (zweit, (0.95, 0.40), glas["weite"] * 0.9, 0.8),
+                       (akzent, (0.45, 1.03), glas["weite"] * 1.1, 0.5))
+        for farbe, (mx, my), weit, anteil in lichter:
             g = QRadialGradient(breite * mx, hoehe * my, breite * weit)
             innen, aussen = QColor(farbe), QColor(farbe)
             innen.setAlphaF(glas["schimmer"] * anteil)
@@ -1396,6 +2306,12 @@ class MainWindow(QWidget):
             g.setColorAt(1.0, aussen)
             p.setBrush(g)
             p.drawRect(self.rect())
+
+        # Zuletzt der Lichtsaum an der Oberkante – dieselbe Geste, die die
+        # Karten wie Glas aussehen laesst, einmal um das ganze Fenster.
+        lichtkante(p, self.theme,
+                   QRectF(0.5, 0.5, breite - 1.0, hoehe - 1.0),
+                   FENSTER_RADIUS, laenge=FENSTER_SAUM)
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
@@ -1419,7 +2335,12 @@ class MainWindow(QWidget):
 
     # ---- Profile ---------------------------------------------------------
     def _profilleiste_bauen(self):
-        """Schmaler Streifen: zurueck, Name, vor, plus."""
+        """Schmaler Streifen: zurueck, Name, vor, plus.
+
+        Zweimal anders probiert – ganz ohne Flaeche wirkte sie losgeloest,
+        in der Mixerkarte verschmolz sie mit etwas, das sie nicht ist. Sie
+        bleibt eine eigene Kachel.
+        """
         leiste = Flaeche(self.theme, 12)
         leiste.setObjectName("Profilleiste")
         leiste.setFixedHeight(52)
@@ -1776,19 +2697,15 @@ class MainWindow(QWidget):
         self._vorlage_anwenden()
         self._seite(seite)
         self.engine.job("refresh")
+        # Die neuen Schalter kennen den Zustand der Box nur aus dem Gedaechtnis
+        # dieses Fensters – den naechsten Durchgang wieder melden lassen.
+        self.boxen.wieder_melden()
 
     def _meter_setzen(self, an):
         self.cfg["meters"] = an
         self.engine.meters_an = an
         for row in self.rows.values():
             row.set_meter_sichtbar(an)
-        self._speichern()
-
-    def _ton_setzen(self, an):
-        self.cfg["ton_anschlag"] = an
-        self.engine.ton_am_anschlag = an
-        if an:
-            klang.anschlag()          # einmal hoeren, was man da einschaltet
         self._speichern()
 
     def _osd_setzen(self, an):
@@ -1813,13 +2730,19 @@ class MainWindow(QWidget):
         self.osd_y_wert.setText("{} %".format(wert))
         self._osd_vorschau()
 
+    def _osd_klar(self, wert):
+        self.cfg["osd_klar"] = wert
+        self.osd_klar_wert.setText("{} %".format(wert))
+        self._osd_vorschau()
+
     def _osd_vorschau(self):
         self.osd.einstellen(self.cfg["osd_size"], self.cfg["osd_x"],
-                            self.cfg["osd_y"])
+                            self.cfg["osd_y"], klar=self.cfg["osd_klar"])
         # Dieselbe Form wie im Betrieb: (Schluessel, Pfad, Name). Die
         # Einblendung rendert das Symbol selbst in der passenden Groesse.
         self.osd.zeigen([(MASTER_KEY, None, "Volumix")], 60,
-                        akzent=self.theme.accent)
+                        akzent=self.theme.accent,
+                        cover=self._cover_farbe, coverbild=self._cover_pix)
         self._speichern()
 
     # ---- App-Auswahl -----------------------------------------------------
@@ -1865,6 +2788,12 @@ class MainWindow(QWidget):
         self.a_aktiv.setChecked(self.cfg["active"])
         self.a_aktiv.triggered.connect(self._tray_aktiv)
         m.addAction(self.a_aktiv)
+        # Die Boxen schaltet man im Vorbeigehen – dafuer die Einstellungen
+        # aufzumachen waere ein Weg zu viel.
+        self.a_boxen = QAction(T("tray_boxen"), self, checkable=True)
+        self.a_boxen.setChecked(self.sw_boxen_an.isChecked())
+        self.a_boxen.triggered.connect(self._tray_boxen)
+        m.addAction(self.a_boxen)
         m.addSeparator()
         a_end = QAction(T("beenden"), self)
         a_end.triggered.connect(self._beenden)
@@ -1880,6 +2809,11 @@ class MainWindow(QWidget):
         self.hook.aktiv = an
         self.sw_aktiv.setChecked(an)
         self._speichern()
+
+    def _tray_boxen(self, an):
+        # Ueber den Schalter in den Einstellungen, damit beide dasselbe
+        # anzeigen – der meldet weiter an `_boxen_an_aus`.
+        self.sw_boxen_an.setChecked(an, melden=True)
 
     def _nach_vorn(self):
         self.showNormal()
@@ -1898,6 +2832,10 @@ class MainWindow(QWidget):
         self._speichern()
         self.hook.stop()
         self.melder.stoppen()
+        self.boxen.on_status = None
+        self.boxen.stop()
+        self.titelwacht.on_titel = None
+        self.titelwacht.stop()
         # Erst abklemmen, dann stoppen: der Audio-Thread laeuft noch einen
         # Durchgang weiter und wuerde sonst an ein totes Fenster melden.
         self.engine.on_apps = None

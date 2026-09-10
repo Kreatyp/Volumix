@@ -25,6 +25,7 @@ config.CONFIG_DIR = _TEST
 config.CONFIG_PATH = os.path.join(_TEST, "config.json")
 
 from volumix.widgets import ToggleSwitch                       # noqa: E402
+import schirm                                                  # noqa: E402
 from volumix.window import MainWindow                          # noqa: E402
 
 fehler = 0
@@ -43,6 +44,7 @@ app = QApplication(sys.argv)
 app.setQuitOnLastWindowClosed(False)
 f = MainWindow()
 f.show()
+schirm.nebenan(f)
 # Diese Reihe sucht Schalter an ihrer Beschriftung – dafuer muss die Sprache
 # feststehen. Ab Werk startet die App auf Englisch.
 f._sprache_setzen("de")

@@ -8,7 +8,7 @@ import ctypes
 from ctypes import wintypes
 
 from PySide6.QtCore import QByteArray, QRectF, Qt
-from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
+from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 
 _user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -34,6 +34,10 @@ PFADE = {
     "help": "M12 2a10 10 0 100 20 10 10 0 000-20z",
     "search": "M10.5 3a7.5 7.5 0 105.3 12.8L21 21 M10.5 3a7.5 7.5 0 000 15",
     "check": "M4.5 12.5l5 5 10-11",
+    # Fensterknoepfe – Windows zeichnet sie nicht mehr, seit das Fenster
+    # rahmenlos ist. Bewusst schlicht: ein Strich und ein Kreuz.
+    "minimieren": "M6 12.5h12",
+    "schliessen": "M6.5 6.5l11 11 M17.5 6.5l-11 11",
     "plus": "M12 5v14 M5 12h14",
     "trash": ("M4 7h16 M9 7V4.5h6V7 M6.5 7l1 13h9l1-13 "
               "M10 10.5v6.5 M14 10.5v6.5"),
@@ -66,6 +70,19 @@ _SPK_KREUZ = [
 _svg_cache = {}
 
 
+def schirm_dichte():
+    """Bildschirmdichte, wenn der Aufrufer keine kennt.
+
+    Wer ein Symbol baut, bevor sein Widget an einem Fenster haengt, hat noch
+    kein `devicePixelRatioF()`. Frueher stand dann 1,0 im Standard – auf
+    einem 175-%-Bildschirm wurde das Symbol in 20 px gerendert und von Qt auf
+    35 hochgezogen. Genau so sahen Zahnrad und Mond beim Start aus, bis ein
+    Moduswechsel sie neu und diesmal scharf gezeichnet hat.
+    """
+    schirm = QGuiApplication.primaryScreen()
+    return schirm.devicePixelRatio() if schirm is not None else 1.0
+
+
 def _svg(pfade, farbe, breite=1.9, gefuellt=None):
     teile = []
     for p in pfade:
@@ -80,8 +97,14 @@ def _svg(pfade, farbe, breite=1.9, gefuellt=None):
             + "".join(teile) + "</svg>")
 
 
-def pixmap(name, groesse, farbe, dpr=1.0):
-    """Symbol als Pixmap – scharf fuer die uebergebene Bildschirmdichte."""
+def pixmap(name, groesse, farbe, dpr=None):
+    """Symbol als Pixmap – scharf fuer die uebergebene Bildschirmdichte.
+
+    Ohne Angabe die des Bildschirms: Ein unscharfes Symbol faellt niemandem
+    als vergessener Wert auf, sondern als billiges Programm.
+    """
+    if dpr is None:
+        dpr = schirm_dichte()
     schluessel = (name, groesse, farbe, round(dpr, 2))
     fertig = _svg_cache.get(schluessel)
     if fertig is not None:
