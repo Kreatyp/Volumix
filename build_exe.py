@@ -155,7 +155,7 @@ def verknuepfung_anlegen(ziel):
 
 # Fassungsnummer der Anwendung. Steht in der Versionsressource der .exe und
 # taucht damit in den Dateieigenschaften auf.
-FASSUNG = (1, 4, 0, 0)
+FASSUNG = (1, 5, 0, 0)
 
 
 def versionsdatei(pfad):

@@ -242,6 +242,21 @@ Gemessen an derselben Stelle, Karte gegen Grund: L\* 98,6 zu 91,7 im Hellen,
 9,1 zu 3,0 im Dunkeln. Beide Modi haben damit denselben Abstand, nur
 gegenläufig — und `tests/test_hell.py` prüft ihn, samt Kante und Textkontrast.
 
+**Das Taskleistensymbol** folgt der Farbe, auch angeheftet. Das ist nicht
+selbstverständlich: Ist ein Programm an die Taskleiste angeheftet, zeigt
+Windows dort das Symbol seiner Verknüpfung — auch während es läuft — und
+ignoriert das Fenstersymbol. Die Verknüpfung nimmt ab Werk das Symbol aus
+der `.exe`, und das ist beim Bauen violett entstanden. Nicht angeheftet fällt
+das nie auf; angeheftet stand Volumix in Violett neben einem roten Fenster.
+
+Volumix legt deshalb beim Farbwechsel ein Symbol in der Akzentfarbe unter
+`%APPDATA%\Volumix\symbole\` ab und trägt es in die angeheftete Verknüpfung
+ein — derselbe Weg, den Chrome für seine Profile nimmt. Angefasst werden nur
+Verknüpfungen, die auf genau diese `.exe` zeigen, und nur, wenn ihr Symbol
+noch nicht stimmt. Je Farbe gibt es eine eigene Datei: Windows hält Symbole in
+einem Zwischenspeicher, der am Pfad hängt, und neuer Inhalt unter altem Namen
+bliebe dort oft bis zum nächsten Neustart des Explorers stehen.
+
 **Größe** zieht die ganze Oberfläche größer oder kleiner — 80 bis 130 %,
 Schrift, Regler und Abstände im selben Verhältnis. Das ist keine Zoomstufe,
 die ein fertiges Bild vergrößert: Der Wert geht als `QT_SCALE_FACTOR` in Qt,
@@ -329,6 +344,28 @@ Discord), bleiben unangetastet.
 > **exakt gleich laut**, auch wenn die Zahl auf der anderen Seite anders
 > steht. Kein Rundungsfehler.
 
+Gerechnet wird dabei **je Tonsitzung**, nicht je App. Eine App kann mehrere
+haben — Discord und Spotify tun das —, und die stehen nicht zwingend gleich.
+Früher stand hier ein Wert je App: gelesen von der ersten Sitzung, gesetzt
+auf alle. Eine zweite, leisere Sitzung sprang damit beim Anhaken auf den
+Stand der ersten. Gemessen in der Testreihe: **+14,0 dB** bei zwei Sitzungen
+auf 1,0 und 0,2 — als „plötzlich deutlich lauter" zu hören. Jetzt bekommt
+jede Sitzung denselben Faktor, und die Verhältnisse bleiben.
+
+### Wenn das Ausgabegerät wechselt
+
+Kopfhörer eingesteckt, Bluetooth verbunden: Windows schaltet um, und alles,
+was Volumix gespeichert hat, zeigt auf das alte Gerät — der Regler der
+Gesamtlautstärke, die Sitzungen der Apps, die Lautstärkekurve. Das war als
+„wenn ich AirPods verbinde, ändert sich die Lautstärke nicht" zu merken:
+Volumix regelte weiter die Lautsprecher.
+
+Volumix fragt deshalb **einmal je Sekunde** nach der Kennung des aktuellen
+Ausgabegeräts. Ändert sie sich, wird alles weggeworfen und neu geholt, und
+die Liste der Apps wird neu gemeldet. Die Abfrage kostet gemessen 10 ms —
+in jedem Messtakt wäre das ein Fünftel der Zeit, einmal je Sekunde ist es
+ein Hundertstel.
+
 ## Im Vollbild: Anzeige an Spiele weitergeben
 
 Im Vollbild liegt die Einblendung **hinter** dem Spiel. Das ist keine
@@ -408,6 +445,30 @@ umfärben. Die Sättigung wird dabei nach oben *und* unten begrenzt, damit ein
 flaues Cover trotzdem leuchtet und ein knallbuntes das Fenster nicht
 einfärbt.
 
+**Laufen mehrere Wiedergaben, gewinnt der Titel.** Windows führt eine
+„aktuelle" Sitzung, und das ist meist die zuletzt gestartete — bei laufendem
+Spotify und laufendem Twitch-Stream nachgemessen: Windows sagte Chrome.
+Volumix wählt stattdessen selbst, in dieser Rangfolge:
+
+1. Was gerade spielt, vor allem Pausierten.
+2. Was eine Länge hat, vor einem Stream ohne Ende. Zu einem Titel mit Anfang
+   und Ende gehören Cover, Zeit und Balken; zu einem Stream nichts davon.
+3. Bei Gleichstand das, was Windows für das aktuelle hält.
+
+Für die Auswahl genügen Zustand und Zeitangaben, und beide kommen ohne
+Warten heraus. Titel und Bild werden nur für die eine Sitzung geholt, die
+gewonnen hat.
+
+**Nicht jedes gemeldete Bild ist ein Cover.** Browser melden bei Seiten ohne
+eigenes Bild ihr Logo an Windows — bei einer Serie in Chrome stand dann das
+Chrome-Logo weichgezeichnet hinter dem Fenster. Unterschieden wird ohne Liste
+von Programmen, nur an der Form: Ein Cover deckt seine Fläche, ein Symbol
+steht frei auf durchsichtigem Grund. Gemessen im 32er-Raster, Alpha unter
+128: das Chrome-Logo 32,8 %, ein Spotify-Cover 0,0 %. Schon ein rundes Symbol
+ohne jeden Rand lässt 21,5 % frei; ab 10 % gilt ein Bild als Symbol, und dann
+bleibt der Hintergrund leer. Ein JPEG kann nicht durchsichtig sein und ist
+damit immer ein Cover.
+
 Die Karte ist der wichtigere Teil: Im dunklen Modus ist das Glas nur zu 7 %
 deckend, ein Bild schiene sonst mitten durch die Schrift. Oben steht Text als
 Einziger ohne Karte auf dem Grund — deshalb dort ein eigener Verlauf. Er
@@ -457,6 +518,61 @@ Die Module sind native Erweiterungen; `build_exe.py` nimmt sie über
 `--collect-all winrt` mit (rund 2,9 MB). Ob es geklappt hat, steht beim Start
 in `%APPDATA%\Volumix\fehler.log` — „Titelwacht laeuft" oder der Grund,
 warum nicht. Ohne die Module bleibt der Hintergrund schlicht leer.
+
+## Der laufende Titel in der Taskleiste
+
+Unter **Einstellungen › Anzeige › Taskleiste** lässt sich ein schmaler
+Streifen einschalten: Titel, Interpret, die verstrichene Zeit und ein
+Fortschrittsbalken in der Akzentfarbe — im freien Platz zwischen den
+Programmsymbolen und der Uhr.
+
+Windows bietet für diesen Bereich nichts an. Die Deskbands aus früheren
+Fassungen gibt es seit Windows 11 nicht mehr, und eine Schnittstelle für
+eigene Inhalte in der Taskleiste existiert nicht. Der Streifen ist deshalb
+ein eigenes rahmenloses Fenster, das genau dorthin gelegt und der Taskleiste
+nachgeführt wird. Klicks gehen hindurch — darunter liegt die Taskleiste, und
+die soll bedienbar bleiben.
+
+Gefunden wird der Platz über die Fenster, aus denen die Taskleiste besteht:
+
+| Fenster | Was es ist |
+|---|---|
+| `Shell_TrayWnd` | die Leiste selbst |
+| `MSTaskSwWClass` | die Programmsymbole, in Windows 11 mittig |
+| `TrayNotifyWnd` | der Bereich mit Uhr und kleinen Symbolen |
+
+Dazwischen ist frei. Gemessen auf diesem Rechner: Leiste 0…2560, Symbole
+bis 1302, Uhr ab 2319 — also gut tausend Pixel Platz. Die Symbolleiste hängt
+eine Ebene tiefer unter `ReBarWindow32`, `FindWindowEx` allein findet sie
+deshalb nicht.
+
+Der Streifen verschwindet, sobald die Taskleiste es tut: bei automatischem
+Ausblenden, bei einer senkrecht angeordneten Leiste, und wenn der freie
+Platz unter 160 Pixel fällt.
+
+Die Spielposition kommt von derselben Stelle wie Titel und Coverbild, aber
+nur alle anderthalb Sekunden. Dazwischen rechnet der Streifen selbst weiter,
+sonst würde der Balken im Sekundentakt ruckeln.
+
+**Livestreams** haben keinen Fortschritt. Windows meldet für sie keine
+brauchbare Länge — gemessen kam aus Chrome ein Ende von *minus einem Tag* —,
+während die Position mitläuft und zählt, wie lange man schon zusieht. Beides
+zusammen, Position ohne Länge, ist das Merkmal: Dann steht rechts ein rotes
+**Live** statt einer Restzeit, und der Balken entfällt. Er würde sonst eine
+Stelle im Titel behaupten, die es nicht gibt.
+
+**Die Schriftfarbe kommt von Windows, nicht von Volumix.** Der Streifen liegt
+auf der Windows-Taskleiste, und die folgt ihrer eigenen Einstellung
+(`SystemUsesLightTheme` in der Registry, getrennt von der für Fenster). Wer
+Volumix auf Hell stellt, während Windows dunkel bleibt, hätte sonst dunkle
+Schrift auf dunkler Leiste. Nur der Fortschrittsbalken nimmt die Farbe von
+Volumix — er ist kräftig genug für beide Untergründe.
+
+Ein Hinweis zur Anbindung an Windows: Die Typen der aufgerufenen Funktionen
+müssen erklärt werden, sonst reicht Python alles als 32-Bit-Zahl durch, wo
+Windows 64 erwartet. Gemessen gab `SetWindowPos` dann Fehler 1400 zurück und
+tat nichts — der Streifen blieb hinter der Taskleiste, sobald man sie
+angeklickt hatte.
 
 ## Boxen im Netz
 
@@ -634,6 +750,8 @@ eine eigene Einstellung braucht.
 ### Anzeige
 
 - **Live-Pegel neben den Reglern** – die Ausschlagbalken an/aus.
+- **Laufenden Titel anzeigen** – der Streifen in der Taskleiste, siehe
+  unten.
 - **Lautstärke-Einblendung anzeigen**, dazu **Größe**, **Position** und
   **Transparenz**. Jede Änderung wird sofort als Vorschau eingeblendet. Ist
   die Einblendung aus, sind die vier Regler ausgegraut – sie hätten dann
@@ -707,6 +825,8 @@ Der Quelltext ist in Bausteine geteilt, statt in einer einzigen großen Datei:
 | `volumix\boxen.py` | Lautsprecher im Netz (Raumfeld) |
 | `volumix\energie.py` | Schlafen und Aufwachen des Rechners |
 | `volumix\titel.py` | laufender Titel und sein Coverbild |
+| `volumix\taskleiste.py` | angeheftetes Taskleistensymbol in der Akzentfarbe |
+| `volumix\zeitleiste.py` | der Titelstreifen im freien Platz der Taskleiste |
 
 Einstellungen liegen in `%APPDATA%\Volumix\config.json`,
 der Autostart-Eintrag unter `HKCU\...\CurrentVersion\Run\Volumix`.

@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (QApplication, QButtonGroup, QDialog, QFrame,
                                QSizePolicy, QSystemTrayIcon,
                                QVBoxLayout, QWidget)
 
-from . import config, icons
+from . import config, icons, taskleiste
 from .audio import AudioEngine, huebscher_name
 from .boxen import Boxen
 from .config import MASTER_KEY
@@ -31,12 +31,17 @@ from .melder import Melder
 from .osd import Osd
 from . import sprache
 from .sprache import SPRACHEN, T
+from .tastenkuerzel import GlobaleTasten, TastenFeld, anzeige
 from .theme import PALETTE, Theme, basis_schrift, glaettung, mix
 from .titel import Titelwacht
+from .zeitleiste import Zeitleiste
 from .widgets import (FadeScroll, Flaeche, MixerRow, Slider, ToggleSwitch,
                       flaeche_zeichnen, lichtkante)
 
 SWITCH_MODES = ["none", "carry", "apps100"]     # Beschriftung via T()
+
+# Einstellung -> Blaetterrichtung der Profiltasten
+PROFILTASTEN = (("taste_profil_vor", 1), ("taste_profil_zurueck", -1))
 
 # Angebotene Groessen der Oberflaeche in Prozent. Bewusst Stufen und
 # kein Regler: Der Wert wirkt erst beim naechsten Start, ein Regler
@@ -80,6 +85,31 @@ COVER_KOPF = 118
 COVER_KOPF_DECKUNG = 0.86
 COVER_AUSLAUF = 36
 COVER_RAND = 0.35
+
+# Ab welchem durchsichtigen Anteil ein "Cover" in Wahrheit ein Programmsymbol
+# ist. Browser melden bei Seiten ohne eigenes Bild ihr Logo an Windows – bei
+# einer Serie in Chrome stand dann das Chrome-Logo hinter dem Fenster.
+# Gemessen im 32er-Raster, Alpha unter 128: Chrome-Logo 32,8 %, ein echtes
+# Spotify-Cover 0,0 %. Schon ein rundes Symbol ohne jeden Rand laesst 21,5 %
+# frei (die Ecken ausserhalb des Kreises); ein Cover deckt seine Flaeche.
+COVER_SYMBOL = 0.10
+
+
+def ist_programmsymbol(bild):
+    """Ob das gemeldete Bild ein Symbol ist und kein Cover.
+
+    Ohne Liste von Browsern: Das Merkmal ist die Form. Ein Cover ist ein
+    Rechteck, das seine Flaeche deckt – hoechstens die Ecken sind leicht
+    abgerundet. Ein Programmsymbol steht frei auf durchsichtigem Grund. Ein
+    JPEG kann gar nicht durchsichtig sein und ist damit immer ein Cover.
+    """
+    if bild.isNull() or not bild.hasAlphaChannel():
+        return False
+    raster = bild.convertToFormat(QImage.Format_ARGB32).scaled(
+        32, 32, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+    frei = sum(1 for y in range(32) for x in range(32)
+               if raster.pixelColor(x, y).alpha() < 128)
+    return frei / 1024.0 >= COVER_SYMBOL
 
 # Ecke und Lichtsaum des Fensters. Der Radius ist der, mit dem Windows 11
 # rahmenlose Fenster rundet – waere er anders, saesse der Saum neben der
@@ -648,6 +678,7 @@ class MainWindow(QWidget):
     rad_gesehen = Signal()
     box_status = Signal(str, str, int)
     titel_bereit = Signal(object, object, object)
+    zeit_bereit = Signal(float, float, bool)
 
     def __init__(self):
         super().__init__()
@@ -716,6 +747,12 @@ class MainWindow(QWidget):
         self._cover_mix = 1.0
         self._cover_farbe = None      # Leuchtfarbe aus dem Cover
         self._symbol_dichte = 0.0     # Dichte, in der die Symbole liegen
+        # Wer die Farben durchklickt, soll nicht bei jedem Klick die
+        # Taskleiste neu laden lassen – erst, wenn er sich entschieden hat.
+        self._taskleisten_takt = QTimer(self)
+        self._taskleisten_takt.setSingleShot(True)
+        self._taskleisten_takt.setInterval(1500)
+        self._taskleisten_takt.timeout.connect(self._taskleiste_faerben)
         self._schirm_verbunden = False
         self._cover_anim = QPropertyAnimation(self, b"coverblende", self)
         self._cover_anim.setDuration(700)
@@ -724,7 +761,11 @@ class MainWindow(QWidget):
         # Farbe – vorher abgegriffen faerbte sich die Leiste auf den halben Weg.
         self._cover_anim.finished.connect(self._titelleiste_faerben)
         self.titelwacht = Titelwacht(
-            on_titel=lambda t, i, c: self.titel_bereit.emit(t, i, c))
+            on_titel=lambda t, i, c: self.titel_bereit.emit(t, i, c),
+            on_zeit=lambda p, d, l: self.zeit_bereit.emit(p, d, l))
+        # Der Streifen in der Taskleiste haengt an derselben Quelle wie das
+        # Coverbild, ist aber ein eigenes Fenster und lebt auch ohne Cover.
+        self.zeitleiste = Zeitleiste(self.theme)
 
         self.boxen = Boxen(
             on_status=lambda s, n, w: self.box_status.emit(s, n, w))
@@ -765,6 +806,7 @@ class MainWindow(QWidget):
         self.rad_gesehen.connect(self._rad_melden)
         self.box_status.connect(self._box_status)
         self.titel_bereit.connect(self._titel_uebernehmen)
+        self.zeit_bereit.connect(self._zeit_uebernehmen)
 
         self.hook = InputHook(
             on_scroll=lambda r: self.scroll_bereit.emit(r),
@@ -776,6 +818,12 @@ class MainWindow(QWidget):
         self.hook.titel_taste = self.cfg["titel_taste"]
         self.hook.hat_ziele = lambda: bool(self.targets)
 
+        # Profilwechsel per Tastenkuerzel. Laeuft ueber RegisterHotKey statt
+        # ueber den Hook oben, damit andere Tasten unberuehrt bleiben.
+        self.tasten = GlobaleTasten()
+        QApplication.instance().installNativeEventFilter(self.tasten)
+        self._profiltasten_anmelden()
+
         self._aufbauen()
         self._vorlage_anwenden()
         self.engine.start()
@@ -784,6 +832,9 @@ class MainWindow(QWidget):
         # die Kopfzeile den Zustand der Box zeigen und schalten koennen.
         if self.cfg.get("cover_bg"):
             self.theme.grund_dunkeln = COVER_KARTEN
+        if self.cfg.get("leiste"):
+            self.zeitleiste.anschalten(True)
+        if self.cfg.get("cover_bg") or self.cfg.get("leiste"):
             self.titelwacht.start()
 
         if self.boxen.aktiv or self.boxen.schalten or self.boxen.host:
@@ -1101,12 +1152,20 @@ class MainWindow(QWidget):
             m, T("titel_taste"), self.cfg["titel_taste"],
             self._titel_taste_setzen, hilfe=T("titel_hilfe"))
 
+        p = Karte(self.theme, T("profiltasten"),
+                  zusatz=self._fragezeichen(T("taste_hilfe")))
+        self.tastenfelder = {}
+        for schluessel, richtung in PROFILTASTEN:
+            text = T("profil_vor") if richtung > 0 else T("profil_zurueck")
+            self.tastenfelder[schluessel] = self._tasten_zeile(
+                p, text, schluessel)
+
         self.btn_hilfe = self._fragezeichen(T("wechsel_hilfe"))
         w = Karte(self.theme, T("beim_wechsel"), zusatz=self.btn_hilfe)
         self.wechsel_gruppe = self._chipreihe(
             w, [(v, T("wechsel_" + v)) for v in SWITCH_MODES],
             self.cfg["switch_mode"], self._wechsel_setzen)
-        return self._bereich(k, m, w)
+        return self._bereich(k, m, p, w)
 
     def _bereich_anzeige(self):
         k = Karte(self.theme, T("im_fenster"))
@@ -1115,6 +1174,11 @@ class MainWindow(QWidget):
         self._schalter_zeile(
             k, T("cover_bg"), self.cfg.get("cover_bg", False),
             self._cover_setzen, hilfe=T("cover_hilfe"))
+
+        b = Karte(self.theme, T("taskleiste"))
+        self._schalter_zeile(
+            b, T("leiste_titel"), self.cfg.get("leiste", False),
+            self._leiste_setzen, hilfe=T("leiste_hilfe"))
 
         o = Karte(self.theme, T("einblendung"))
         self._schalter_zeile(
@@ -1149,7 +1213,7 @@ class MainWindow(QWidget):
         self.osd_teile.setEnabled(self.cfg["osd_enabled"])
         o.lay.addWidget(self.osd_teile)
 
-        return self._bereich(k, o)
+        return self._bereich(k, b, o)
 
     def _bereich_allgemein(self):
         # Das Aussehen stand frueher in einem eigenen Reiter. Fuer zwei Zeilen
@@ -1338,6 +1402,10 @@ class MainWindow(QWidget):
         bild = QImage()
         if not daten or not bild.loadFromData(daten):
             return None, None
+        if ist_programmsymbol(bild):
+            # Lieber gar kein Hintergrund als ein weichgezeichnetes Logo:
+            # Das sieht nicht nach Musik aus, sondern nach einem Fehler.
+            return None, None
         rand = COVER_RADIUS
         voll = COVER_ARBEIT + 2 * rand
         klein = bild.scaled(voll, voll, Qt.IgnoreAspectRatio,
@@ -1386,6 +1454,9 @@ class MainWindow(QWidget):
                               min(205, max(140, mittel.value())))
 
     def _titel_uebernehmen(self, titel, interpret, daten):
+        # Der Streifen in der Taskleiste braucht den Titel unabhaengig davon,
+        # ob das Coverbild im Fenster liegt.
+        self.zeitleiste.titel_setzen(titel, interpret, self._cover_farbe)
         if not self.cfg.get("cover_bg"):
             return
         neu, farbe = self._cover_bauen(daten)
@@ -1394,10 +1465,14 @@ class MainWindow(QWidget):
         self._cover_alt = self._cover_pix
         self._cover_pix = neu
         self._cover_farbe = farbe
+        self.zeitleiste.titel_setzen(titel, interpret, farbe)
         self._cover_anim.stop()
         self._cover_anim.setStartValue(0.0)
         self._cover_anim.setEndValue(1.0)
         self._cover_anim.start()
+
+    def _zeit_uebernehmen(self, position, dauer, laeuft):
+        self.zeitleiste.zeit_setzen(position, dauer, laeuft)
 
     def _cover_zeichnen(self, p):
         """Bild, Schleier, Kopfverlauf – in dieser Reihenfolge.
@@ -1467,7 +1542,8 @@ class MainWindow(QWidget):
             self.titelwacht.neu_melden()
             self.titelwacht.start()
         else:
-            self.titelwacht.stop()
+            if not self.cfg.get("leiste"):
+                self.titelwacht.stop()
             self._cover_pix = None
             self._cover_alt = None
             # Ohne Bild auch kein Licht daraus: sonst leuchtet das
@@ -1476,6 +1552,17 @@ class MainWindow(QWidget):
         self._speichern()
         self._alles_neu_zeichnen()
         QTimer.singleShot(0, self._titelleiste_faerben)
+
+    def _leiste_setzen(self, an):
+        """Streifen in der Taskleiste an oder aus."""
+        self.cfg["leiste"] = bool(an)
+        self.zeitleiste.anschalten(bool(an))
+        if an:
+            self.titelwacht.neu_melden()
+            self.titelwacht.start()
+        elif not self.cfg.get("cover_bg"):
+            self.titelwacht.stop()
+        self._speichern()
 
     def _alles_neu_zeichnen(self):
         """Die Flaechen zeichnen sich selbst – sie muessen es erfahren."""
@@ -1713,12 +1800,28 @@ class MainWindow(QWidget):
         for row in self.rows.values():
             row.theme_wechseln(self.theme)
         self.fade.theme = self.theme
+        self.zeitleiste.theme_wechseln(self.theme)
         self.osd.einstellen(self.cfg["osd_size"], self.cfg["osd_x"],
                             self.cfg["osd_y"], self.theme,
                             klar=self.cfg["osd_klar"])
         if getattr(self, "tray", None):
             self.tray.setIcon(QIcon(icons.app_logo(64, self.theme.accent)))
         self._titelleiste_faerben()
+        # Nur in der gebauten App: Aus dem Quelltext gestartet ist das
+        # Programm python.exe, und dessen Verknuepfungen gehen Volumix nichts an.
+        if getattr(sys, "frozen", False):
+            self._taskleisten_takt.start()
+
+    def _taskleiste_faerben(self):
+        """Die angeheftete Verknuepfung in der Akzentfarbe – siehe taskleiste.py."""
+        try:
+            n = taskleiste.verknuepfungen_faerben(
+                self.theme.accent, os.path.join(config.CONFIG_DIR, "symbole"))
+            if n:
+                config.notiz("Taskleiste: {} Verknuepfung(en) in {}".format(
+                    n, self.theme.accent))
+        except Exception as e:
+            config.notiz("Taskleiste nicht umgefaerbt: {}".format(e))
 
     def _kanten_weich_machen(self):
         """Die Glaettungsvorgabe nachziehen.
@@ -2573,6 +2676,83 @@ class MainWindow(QWidget):
             self._profilleiste_auffrischen()
             self._speichern()
 
+    # ---- Profilwechsel per Tastenkuerzel ---------------------------------
+    def _profiltasten_anmelden(self):
+        """Kuerzel aus der Einstellung bei Windows anmelden.
+
+        Scheitert eins, bleibt es in der Einstellung stehen: Das Programm,
+        das die Kombination belegt, gibt sie vielleicht beim naechsten
+        Start frei.
+        """
+        for schluessel, richtung in PROFILTASTEN:
+            kuerzel = self.cfg.get(schluessel, "")
+            rueckruf = functools.partial(self._profil_per_taste, richtung)
+            if not self.tasten.setzen(schluessel, kuerzel, rueckruf):
+                config.notiz("Tastenkuerzel nicht frei: {} = {}".format(
+                    schluessel, kuerzel))
+
+    def _profil_per_taste(self, richtung):
+        self._profil_blaettern(richtung)
+        self._profil_einblenden()
+
+    def _profil_einblenden(self):
+        """Den Namen des offenen Profils in der Einblendung zeigen.
+
+        Beim Wechsel per Taste ist das Fenster meist zu, die Statuszeile
+        darin sieht dann niemand. Dazu die Apps, die im Profil am Rad
+        haengen. Bei nur einem Profil bleibt es stehen - die Einblendung
+        zeigt trotzdem, dass die Taste angekommen ist.
+        """
+        if not self.cfg["osd_enabled"]:
+            return
+        quellen = []
+        for key in sorted(self.targets):
+            name = self._meta.get(key) or huebscher_name(key)
+            quellen.append((key, self.exes.get(key), name))
+        if not quellen:
+            quellen = [(MASTER_KEY, None, "Volumix")]
+        self.osd.zeigen(quellen, 100, text=self.cfg.get("profil", ""),
+                        dauer=1600, akzent=self.theme.accent,
+                        cover=self._cover_farbe, coverbild=self._cover_pix)
+
+    def _tasten_zeile(self, karte, text, schluessel):
+        zeile = QHBoxLayout()
+        zeile.setContentsMargins(0, 3, 0, 3)
+        zeile.addWidget(QLabel(text), 1)
+        feld = TastenFeld(self.cfg.get(schluessel, ""))
+        feld.aufnahme.connect(self._tasten_aufnahme)
+        feld.festgelegt.connect(
+            functools.partial(self._taste_festlegen, schluessel, feld))
+        zeile.addWidget(feld)
+        karte.lay.addLayout(zeile)
+        return feld
+
+    def _tasten_aufnahme(self, laeuft):
+        # Solange eine Kombination angemeldet ist, faengt Windows sie ab -
+        # im Aufnahmefeld kaeme sie dann nie an.
+        if laeuft:
+            self.tasten.aussetzen()
+        else:
+            self.tasten.fortsetzen()
+
+    def _taste_festlegen(self, schluessel, feld, kuerzel):
+        alt = self.cfg.get(schluessel, "")
+        rueckruf = functools.partial(self._profil_per_taste,
+                                     dict(PROFILTASTEN)[schluessel])
+        andere = [self.cfg.get(k) for k, _ in PROFILTASTEN if k != schluessel]
+        if kuerzel and kuerzel in andere:
+            feld.setze(alt)
+            feld.fehler(T("taste_doppelt"))
+            return
+        if not self.tasten.setzen(schluessel, kuerzel, rueckruf):
+            # Das alte wieder anmelden, sonst waere die Richtung jetzt leer
+            self.tasten.setzen(schluessel, alt, rueckruf)
+            feld.setze(alt)
+            feld.fehler(T("taste_vergeben", kuerzel=anzeige(kuerzel)))
+            return
+        self.cfg[schluessel] = kuerzel
+        feld.setze(kuerzel)
+        self._speichern()
 
     # ---- Statusleiste ----------------------------------------------------
     def _status_setzen(self):
@@ -2831,11 +3011,16 @@ class MainWindow(QWidget):
         config.notiz("beendet")
         self._speichern()
         self.hook.stop()
+        self.tasten.alle_loesen()
+        QApplication.instance().removeNativeEventFilter(self.tasten)
         self.melder.stoppen()
         self.boxen.on_status = None
         self.boxen.stop()
         self.titelwacht.on_titel = None
+        self.titelwacht.on_zeit = None
         self.titelwacht.stop()
+        self.zeitleiste.anschalten(False)
+        self.zeitleiste.close()
         # Erst abklemmen, dann stoppen: der Audio-Thread laeuft noch einen
         # Durchgang weiter und wuerde sonst an ein totes Fenster melden.
         self.engine.on_apps = None

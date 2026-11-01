@@ -25,6 +25,10 @@ DEFAULTS = {
     "active": True,
     "media_keys": False,     # Lautstaerke-Tasten statt Daumenrad
     "titel_taste": False,    # Mehrfachdruck auf Wiedergabe/Pause
+    # Tastenkuerzel fuer den Profilwechsel, leer = nicht belegt. Form siehe
+    # tastenkuerzel.py, etwa "ctrl+alt+39" fuer Strg+Alt+Rechts.
+    "taste_profil_vor": "",
+    "taste_profil_zurueck": "",
     "switch_mode": "none",   # was beim Wechsel Gesamt <-> App passiert
     "meters": True,          # Live-Pegel neben den Reglern
     "cover_bg": False,       # Coverbild des laufenden Titels als Grund
@@ -47,6 +51,8 @@ DEFAULTS = {
     "osd_y": 88,
     # Prozent Durchsicht der Einblendung. 0 steht auf deckend.
     "osd_klar": 50,
+    # Laufender Titel mit Fortschritt im freien Platz der Taskleiste
+    "leiste": False,
     "sprache": "en",         # "de" oder "en" – Voreinstellung Englisch
     "accent": "violet",      # Schluessel aus theme.PALETTE
     "mode": "dark",

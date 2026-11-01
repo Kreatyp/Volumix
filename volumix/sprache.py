@@ -92,6 +92,52 @@ TEXTE = {
         "Everything from the settings — colour, speed, language — applies "
         "to all profiles alike."),
 
+    # ---- Tastenkuerzel fuer den Profilwechsel ----
+    "profiltasten": ("PROFILWECHSEL", "PROFILE SWITCHING"),
+    "taste_hilfe": (
+        "Wechselt das Profil auch bei geschlossenem Fenster – etwa mitten "
+        "im Spiel. Beim Wechsel zeigt die Einblendung den Namen des neuen "
+        "Profils.\n\n"
+        "Knopf anklicken und die Kombination drücken. Esc bricht ab, Entf "
+        "löscht das Kürzel.\n\n"
+        "Die Tasten laufen nicht über den Hook für Rad und Medientasten, "
+        "sondern werden direkt bei Windows angemeldet. Alle anderen Tasten "
+        "bleiben dabei unberührt.",
+        "Switches the profile even while the window is closed – in the "
+        "middle of a game, say. The on-screen display shows the name of the "
+        "new profile.\n\n"
+        "Click the button and press the combination. Esc cancels, Del "
+        "removes the shortcut.\n\n"
+        "The keys don't go through the hook for the wheel and media keys; "
+        "they are registered with Windows directly. Every other key is left "
+        "untouched."),
+    "taste_nicht_belegt": ("Nicht belegt", "Not set"),
+    "taste_druecken": ("Tasten drücken …", "Press keys …"),
+    "einwand_ohne_zusatz": ("Mit Strg, Alt oder Win kombinieren",
+                          "Combine with Ctrl, Alt or Win"),
+    "einwand_tippt": ("Tippt „{zeichen}“ – bitte eine andere",
+                    "Types “{zeichen}” – pick another"),
+    "taste_vergeben": ("{kuerzel} ist schon vergeben",
+                       "{kuerzel} is already taken"),
+    "taste_doppelt": ("Schon für die andere Richtung belegt",
+                      "Already used for the other direction"),
+    "mod_strg": ("Strg", "Ctrl"),
+    "mod_alt": ("Alt", "Alt"),
+    "mod_umschalt": ("Umschalt", "Shift"),
+    "mod_win": ("Win", "Win"),
+    "tname_ruecktaste": ("Rücktaste", "Backspace"),
+    "tname_tab": ("Tab", "Tab"),
+    "tname_enter": ("Enter", "Enter"),
+    "tname_pause": ("Pause", "Pause"),
+    "tname_leer": ("Leertaste", "Space"),
+    "tname_bild_auf": ("Bild↑", "PgUp"),
+    "tname_bild_ab": ("Bild↓", "PgDn"),
+    "tname_ende": ("Ende", "End"),
+    "tname_pos1": ("Pos1", "Home"),
+    "tname_druck": ("Druck", "PrtSc"),
+    "tname_einfg": ("Einfg", "Ins"),
+    "tname_entf": ("Entf", "Del"),
+
     # ---- Einstellungen: Abschnitte ----
     # Die vier Reiter – gemischt geschrieben wie die Ueberschrift darueber.
     # Die Karten darin tragen die gesperrten Grossbuchstaben.
@@ -309,6 +355,19 @@ TEXTE = {
     "position_waagerecht": ("Position waagerecht", "Position horizontal"),
     "position_senkrecht": ("Position senkrecht", "Position vertical"),
     "transparenz": ("Transparenz", "Transparency"),
+    "taskleiste": ("TASKLEISTE", "TASKBAR"),
+    "live": ("Live", "Live"),
+    "leiste_titel": ("Laufenden Titel anzeigen", "Show the current track"),
+    "leiste_hilfe": (
+        "Zeigt Titel, Interpret und den Fortschritt im freien Platz der "
+        "Taskleiste – zwischen den Programmsymbolen und der Uhr. Windows "
+        "bietet dafür keine eigene Stelle an, deshalb liegt dort ein "
+        "schmales Fenster von Volumix. Klicks gehen hindurch, und sobald "
+        "die Taskleiste verschwindet, verschwindet es mit.",
+        "Shows title, artist and progress in the free space of the taskbar "
+        "– between the app icons and the clock. Windows offers no place "
+        "of its own for this, so a slim Volumix window sits there. Clicks "
+        "pass through it, and it disappears whenever the taskbar does."),
 
     # ---- Dialog „Sichtbare Apps“ ----
     "sichtbare_apps": ("SICHTBARE APPS", "VISIBLE APPS"),

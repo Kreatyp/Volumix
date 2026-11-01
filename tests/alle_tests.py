@@ -32,9 +32,15 @@ def main():
         name = os.path.basename(datei)
         print("{}  läuft …".format(name.ljust(breite)), end="", flush=True)
         t0 = time.perf_counter()
+        # Die Ausgabe der Testreihen ausdruecklich als UTF-8: Sonst nimmt
+        # Python die Kodierung der Konsole (cp1252), und eine Reihe, die
+        # einen Pfeil oder ein Anfuehrungszeichen ausgibt, stirbt beim
+        # Schreiben statt am Inhalt - gruen gemessen, rot gemeldet.
+        umgebung = dict(os.environ, PYTHONIOENCODING="utf-8")
         lauf = subprocess.run([sys.executable, datei],
                               capture_output=True, text=True,
-                              encoding="utf-8", errors="replace")
+                              encoding="utf-8", errors="replace",
+                              env=umgebung)
         dauer = time.perf_counter() - t0
         ok = lauf.returncode == 0
         ergebnisse.append((name, ok, lauf.stdout or "", lauf.stderr or ""))

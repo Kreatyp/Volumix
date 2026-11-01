@@ -70,6 +70,8 @@ class AudioEngine:
         self._bezug = {}               # wie laut die App ueblicherweise ist
 
         self._epv = None
+        self._geraet = None            # Kennung des Ausgabegeraets
+        self._geraet_geprueft = 0.0
         self._sess_cache = None        # (Zeitpunkt, {key: [SimpleAudioVolume]})
         self._meter_cache = None       # (Zeitpunkt, {key: IAudioMeterInformation})
         self._ziel = {}                # key -> Zielpegel in Prozent
@@ -163,6 +165,11 @@ class AudioEngine:
                 if self._ziel:
                     self._fahren()
 
+                # Hat Windows das Ausgabegeraet gewechselt? Dann zeigen alle
+                # gespeicherten Regler ins Leere und die Liste muss neu.
+                if self._geraet_pruefen():
+                    self._apps_melden()
+
                 # Pegelanzeige: unabhaengig vom Rest, ~20 Bilder je Sekunde
                 jetzt = time.perf_counter()
                 if jetzt - letzte_messung >= 0.05:
@@ -180,6 +187,52 @@ class AudioEngine:
                             pass
         finally:
             CoUninitialize()
+
+    # ---- Ausgabegeraet ---------------------------------------------------
+    def _geraet_kennung(self):
+        """Kennung des Geraets, auf dem Windows gerade ausgibt."""
+        try:
+            return str(AudioUtilities.GetSpeakers().id)
+        except Exception:
+            return None
+
+    def _geraet_pruefen(self, takt=1.0):
+        """Merken, wenn Windows das Ausgabegeraet gewechselt hat.
+
+        Steckt jemand Kopfhoerer ein oder verbindet Bluetooth, zeigt alles,
+        was hier gespeichert ist, auf das alte Geraet: der Regler der
+        Gesamtlautstaerke, die Sitzungen der Apps, die Kurve. Volumix regelte
+        dann weiter die Lautsprecher, waehrend der Ton aus den Kopfhoerern
+        kam - und nichts tat sich.
+
+        Nachgefragt wird hoechstens einmal je Sekunde: Die Abfrage kostet
+        gemessen 10 ms, der Wechsel selbst passiert ein paarmal am Tag.
+        """
+        jetzt = time.perf_counter()
+        if jetzt - self._geraet_geprueft < takt:
+            return False
+        self._geraet_geprueft = jetzt
+        kennung = self._geraet_kennung()
+        if kennung is None or kennung == self._geraet:
+            return False
+        erster = self._geraet is None
+        self._geraet = kennung
+        if erster:
+            return False
+        # Alles wegwerfen, was am alten Geraet hing.
+        self._epv = None
+        self._sess_cache = None
+        self._meter_cache = None
+        self._ziel.clear()
+        self._jetzt.clear()
+        self._schritt.clear()
+        self._gamma_auffrischen()
+        try:
+            from . import config
+            config.notiz("Ausgabegeraet gewechselt - Regler neu geholt")
+        except Exception:
+            pass
+        return True
 
     # ---- Sitzungen -------------------------------------------------------
     def _sessions(self):
@@ -626,18 +679,34 @@ class AudioEngine:
         # Frisch holen: Hier haengt der Gehoerschutz dran, ein veralteter
         # Sitzungsspeicher liesse das Leiserstellen still ins Leere laufen.
         by = self._by_key(max_alter=0.0)
-        # Hier geht es um tatsaechliche Lautheit, nicht um Reglerwege –
-        # deshalb durchgehend mit Amplituden gerechnet.
-        pegel = {k: a for k, a in ((k, self.app_amplitude(k, by)) for k in keys)
-                 if a is not None}
-        if not pegel:
+        # Gerechnet wird je Sitzung, nicht je App. Eine App kann mehrere
+        # haben - Discord und Spotify tun das -, und die stehen nicht
+        # zwingend gleich. Frueher stand hier ein Wert je App: gelesen von
+        # der ersten Sitzung, gesetzt auf alle. Eine zweite, leisere Sitzung
+        # sprang damit beim Anhaken auf den Wert der ersten, und genau das
+        # war als „Spotify ist ploetzlich deutlich lauter" zu hoeren.
+        regler = {k: by.get(k, []) for k in keys}
+        regler = {k: v for k, v in regler.items() if v}
+        spitzen = {}
+        for key, liste in regler.items():
+            werte = []
+            for sav in liste:
+                try:
+                    werte.append(float(sav.GetMasterVolume()))
+                except Exception:
+                    pass
+            if werte:
+                spitzen[key] = max(werte)
+        if not spitzen:
             return
         # Apps, die gerade wirklich spielen, muessen mit – fuer sie aendert
         # sich die Gesamtdaempfung genauso. Stille Apps bleiben in Ruhe.
-        mit = self._spielende(ausser=set(pegel))
+        mit = self._spielende(ausser=set(spitzen))
         if richtung == "apps":
-            leiser = all([self.set_app_amplitude(key, amp * gain)
-                          for key, amp in pegel.items()])
+            # Jede Sitzung mit demselben Faktor: Das haelt die Verhaeltnisse
+            # und macht nichts lauter, als es war.
+            leiser = all([self._skalieren(regler[key], gain)
+                          for key in spitzen])
             leiser = self._skalieren(self._flach(mit), gain) and leiser
             if not leiser:
                 # Lieber gar nichts aendern als die Gesamtlautstaerke
@@ -646,11 +715,17 @@ class AudioEngine:
             self._setzen_lassen()
             self.set_master_scalar(1.0)
         else:
-            self.set_master_gain(min(pegel.values()) * gain)
+            # Die lauteste Sitzung gibt den Ton an: Sie wandert auf 100 %,
+            # alles andere im selben Verhaeltnis mit, und die Gesamtlautstaerke
+            # uebernimmt genau diese Daempfung.
+            spitze = max(spitzen.values())
+            if spitze <= 0.0:
+                return
+            self.set_master_gain(spitze * gain)
             self._setzen_lassen()
-            for key in pegel:
-                self.set_app_amplitude(key, 1.0)
-            self._skalieren(self._flach(mit), None)
+            for key in spitzen:
+                self._skalieren(regler[key], 1.0 / spitze)
+            self._skalieren(self._flach(mit), 1.0 / spitze)
         self._ziel.clear()
         self._jetzt.clear()
         self._schritt.clear()

@@ -31,16 +31,49 @@ TAKT = 1.5          # Sekunden zwischen zwei Abfragen
 FEHLERTAKT = [5.0, 15.0, 30.0, 60.0]
 
 
+def beste_sitzung(kandidaten):
+    """Welche Wiedergabe angezeigt wird, wenn mehrere laufen.
+
+    Windows fuehrt eine „aktuelle" Sitzung, und das ist meist die zuletzt
+    gestartete. Laeuft ein Stream im Browser, waehrend daneben Musik
+    spielt, zeigte Volumix deshalb den Stream – samt Browserlogo als Cover.
+
+    Die Reihenfolge ist deshalb, in dieser Rangfolge:
+
+    1. Was gerade spielt, vor allem Pausierten.
+    2. Was eine Laenge hat, vor einem Stream ohne Ende. Ein Titel mit
+       Anfang und Ende ist das, wozu Cover, Zeit und Balken ueberhaupt
+       passen – ein Stream hat davon nichts.
+    3. Bei Gleichstand das, was Windows fuer das aktuelle haelt.
+
+    `kandidaten` sind Vierergruppen `(sitzung, laeuft, dauer, ist_aktuell)`.
+    """
+    beste, bester_rang = None, None
+    for sitzung, laeuft, dauer, ist_aktuell in kandidaten:
+        rang = (1 if laeuft else 0,
+                1 if dauer and dauer > 0 else 0,
+                1 if ist_aktuell else 0)
+        if bester_rang is None or rang > bester_rang:
+            beste, bester_rang = sitzung, rang
+    return beste
+
+
 class Titelwacht:
     """Ruft `on_titel(titel, interpret, cover)` bei jedem Titelwechsel.
 
     `cover` sind die rohen Bilddaten (meist JPEG) oder None. Der Rueckruf
     kommt aus dem Arbeitsthread – die Oberflaeche muss ihn in ihren eigenen
     weiterreichen.
+
+    `on_zeit(position, dauer, laeuft)` kommt bei *jedem* Durchgang, nicht nur
+    beim Wechsel: Der Fortschritt aendert sich staendig. Die Sekunden
+    dazwischen rechnet sich die Anzeige selbst aus – anderthalb Sekunden
+    Takt waeren als Ruckeln zu sehen. Laeuft nichts, kommen Nullen.
     """
 
-    def __init__(self, on_titel=None):
+    def __init__(self, on_titel=None, on_zeit=None):
         self.on_titel = on_titel
+        self.on_zeit = on_zeit
         self._stop = False
         self._thread = None
         self._letzter = None        # (Titel, Interpret)
@@ -93,10 +126,52 @@ class Titelwacht:
         # falsch: Der Manager ist ein Zugang, kein Ergebnis.
         manager = [None]
 
+        def zeiten(sitzung):
+            """Position und Laenge in Sekunden, dazu ob es gerade laeuft.
+
+            Ein Livestream meldet kein Ende – dort kommt ein unsinniger Wert
+            heraus (gemessen minus ein Tag). Solche Laengen werden verworfen;
+            eine Position ohne Laenge ist immer noch eine Angabe.
+            """
+            try:
+                z = sitzung.get_timeline_properties()
+                dauer = z.end_time.total_seconds() - z.start_time.total_seconds()
+                stelle = z.position.total_seconds()
+            except Exception:
+                return (0.0, 0.0, False)
+            if dauer <= 0 or dauer > 24 * 3600:
+                dauer = 0.0
+            try:
+                laeuft = int(sitzung.get_playback_info().playback_status) == 4
+            except Exception:
+                laeuft = False
+            return (max(0.0, stelle), max(0.0, dauer), laeuft)
+
+        def waehlen():
+            """Die Sitzung, die angezeigt wird – siehe `beste_sitzung`.
+
+            Fuer die Auswahl genuegen Zustand und Zeitangaben, und beide
+            kommen ohne `await` heraus. Die Eigenschaften mit Titel und Bild
+            werden nur fuer die eine geholt, die gewonnen hat.
+            """
+            aktuell = manager[0].get_current_session()
+            kennung = aktuell.source_app_user_model_id if aktuell else None
+            kandidaten = []
+            try:
+                sitzungen = list(manager[0].get_sessions())
+            except Exception:
+                sitzungen = []
+            for s in sitzungen:
+                stelle, dauer, laeuft = zeiten(s)
+                kandidaten.append(
+                    (s, laeuft, dauer,
+                     s.source_app_user_model_id == kennung))
+            return beste_sitzung(kandidaten) or aktuell
+
         async def hole(mit_bild):
             if manager[0] is None:
                 manager[0] = await Manager.request_async()
-            sitzung = manager[0].get_current_session()
+            sitzung = waehlen()
             if sitzung is None:
                 return None
             eig = await sitzung.try_get_media_properties_async()
@@ -107,7 +182,7 @@ class Titelwacht:
                 await strom.read_async(puffer, strom.size,
                                        InputStreamOptions.READ_AHEAD)
                 daten = bytes(puffer)
-            return eig.title, eig.artist, daten
+            return eig.title, eig.artist, daten, zeiten(sitzung)
 
         while not self._stop:
             kaputt = False
@@ -133,6 +208,7 @@ class Titelwacht:
                 self._fehler += 1
             elif jetzt is None:
                 self._fehler = 0
+                self._zeit_melden(0.0, 0.0, False)
                 if self._letzter is not None:
                     self._letzter = None
                     self._melden(None, None, None)
@@ -141,7 +217,8 @@ class Titelwacht:
                     from . import config
                     config.notiz("Titelwacht: Medienschnittstelle wieder da")
                 self._fehler = 0
-                titel, interpret, _ = jetzt
+                titel, interpret, _, zeit = jetzt
+                self._zeit_melden(*zeit)
                 if (titel, interpret) != self._letzter:
                     self._letzter = (titel, interpret)
                     try:
@@ -149,7 +226,7 @@ class Titelwacht:
                     except Exception:
                         mit = None
                     if mit:
-                        self._melden(*mit)
+                        self._melden(*mit[:3])
                     else:
                         self._melden(titel, interpret, None)
 
@@ -167,4 +244,11 @@ class Titelwacht:
                 self.on_titel(titel, interpret, cover)
             except Exception:
                 # Beim Beenden haengt der Rueckruf ins Leere.
+                pass
+
+    def _zeit_melden(self, position, dauer, laeuft):
+        if self.on_zeit:
+            try:
+                self.on_zeit(position, dauer, laeuft)
+            except Exception:
                 pass
